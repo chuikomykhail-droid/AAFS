@@ -35,7 +35,7 @@ def run_stage1():
     units_info = build_units(df, config)
     
     # 3. Masks
-    mask_df = build_masks(df, units_info, config)
+    mask_df, mask_stats = build_masks(df, units_info, config)
     
     # 4. Generate Reports and Plots
     work_start = pd.to_datetime(config['periods']['work_start'])
@@ -43,9 +43,11 @@ def run_stage1():
     
     df_work = df[(df['started_at'] >= work_start) & (df['started_at'] <= data_end)].copy()
     
-    valid_raions = set(units_info['raion'])
-    df_work['loc_key'] = df_work['raion'].fillna(df_work['oblast'])
-    df_scope = df_work[df_work['loc_key'].isin(valid_raions)].copy()
+    exc = config['excluded_oblasts']
+    df_raions = df_work[(df_work['level'] == 'raion') & (~df_work['oblast'].isin(exc))].copy()
+    df_kyiv = df_work[(df_work['level'] == 'oblast') & (df_work['oblast'] == 'Kyiv City')].copy()
+    df_scope = pd.concat([df_raions, df_kyiv])
+    df_scope['loc_key'] = df_scope['raion'].fillna(df_scope['oblast'])
     
     # Numbers for summary
     total_scope = len(df_scope)
@@ -67,9 +69,25 @@ def run_stage1():
         f.write(f"- Overlaps after deduplication: {overlaps}\n")
         
         # Mask stats
-        mask_test_start = pd.to_datetime(config['periods']['val_end'])
-        test_masks = mask_df[(mask_df['reason'] != 'after_data_end') & (mask_df['start'] >= mask_test_start)]
-        f.write(f"- Masked intervals in test period (>24h or 1h fake): {len(test_masks)}\n")
+        f.write(f"\n## Mask Stats\n")
+        orig_total = mask_stats['rule_a_loc_total'] + mask_stats['rule_b_loc_total']
+        orig_test = mask_stats['rule_a_loc_test'] + mask_stats['rule_b_loc_test']
+        unit_total = mask_stats['rule_a_unit_total'] + mask_stats['rule_b_unit_total']
+        unit_test = mask_stats['rule_a_unit_test'] + mask_stats['rule_b_unit_test']
+        f.write(f"- Masks rule A/B original locs: {orig_total}\n")
+        f.write(f"- Masks rule A/B original locs in test: {orig_test}\n")
+        f.write(f"- Masks rule A/B merged units: {unit_total}\n")
+        f.write(f"- Masks rule A/B merged units in test: {unit_test}\n")
+        
+        f.write(f"\n## Masked Unit-Hours (by period)\n")
+        f.write(f"- Train: {mask_stats.get('train_masked_pct', 0):.2f}%\n")
+        f.write(f"- Val: {mask_stats.get('val_masked_pct', 0):.2f}%\n")
+        f.write(f"- Test: {mask_stats.get('test_masked_pct', 0):.2f}%\n")
+
+    # If test mask % > 5%, log a warning
+    test_pct = mask_stats.get('test_masked_pct', 0)
+    if test_pct > 5.0:
+        logging.error(f"Test masked percentage is {test_pct:.2f}% (> 5%)!")
 
     # Plots
     # 1. Level transition
