@@ -1,3 +1,5 @@
-
 .vs/
-
+venv/
+dataset_repo/
+__pycache__/
+*.pyc

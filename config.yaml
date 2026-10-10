@@ -1,0 +1,7 @@
+dataset:
+  repository: "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset"
+  commit_hash: "7ccd4367b7057a4541ce109ca09cf1f0220f6a75"
+  file_path: "dataset_repo/datasets/official_data_en.csv"
+
+horizons: [3]
+
