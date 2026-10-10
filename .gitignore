@@ -3,3 +3,5 @@ venv/
 dataset_repo/
 __pycache__/
 *.pyc
+.pytest_cache/
+scratch/

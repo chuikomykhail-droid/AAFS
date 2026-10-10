@@ -1,145 +1,117 @@
+"""Mask of "status unknown" (D10, D13, D15). Pure functions: nothing is written to disk here.
+
+Rules, all evaluated retrospectively (they use the future, so they are target-side only):
+  (a) long_24h       alert longer than long_alert_hours: the alert itself;
+  (b) fake_1h        processor-invented end (exactly fake_end_duration_s, next start of the same
+                     source location more than fake_end_next_start_h later): (start, next_start);
+  (c) after_data_end everything from data_end to the end of the file;
+  (d) outage         channel silence: no event of any record for more than outage_gap_hours.
+Rules (a) and (b) are applied to source locations (the processor works per location) and then
+moved to units; (c) and (d) apply to every unit.
+
+The mask table keeps one row per (unit, reason, merged interval): intervals are disjoint within a
+reason but may overlap across reasons. Use spans.union() for the total masked time.
+"""
 import pandas as pd
-import os
-import logging
 
-logger = logging.getLogger(__name__)
+from alerts.config import ts
+from alerts.scope import ROLE_TARGET, attach_units
+from alerts.spans import clipped_seconds, union
 
-def _merge_intervals(sub_df):
-    if sub_df.empty: 
-        return sub_df
-    sub_df = sub_df.sort_values(['unit_id', 'start'])
-    merged = []
-    for uid, group in sub_df.groupby('unit_id'):
-        curr_start = None
-        curr_end = None
-        curr_reason = None
-        for _, row in group.iterrows():
-            if curr_start is None:
-                curr_start = row['start']
-                curr_end = row['end']
-                curr_reason = row['reason']
-            else:
-                if row['start'] <= curr_end:
-                    curr_end = max(curr_end, row['end'])
-                else:
-                    merged.append({'unit_id': uid, 'start': curr_start, 'end': curr_end, 'reason': curr_reason})
-                    curr_start = row['start']
-                    curr_end = row['end']
-                    curr_reason = row['reason']
-        if curr_start is not None:
-            merged.append({'unit_id': uid, 'start': curr_start, 'end': curr_end, 'reason': curr_reason})
-    return pd.DataFrame(merged)
+LONG = 'long_24h'
+FAKE_END = 'fake_1h'
+AFTER_END = 'after_data_end'
+OUTAGE = 'outage'
+REASONS = [LONG, FAKE_END, AFTER_END, OUTAGE]
+# Reasons that make an alert's own end unreliable (`uncertain` flag in intervals)
+UNCERTAIN_REASONS = [LONG, FAKE_END, OUTAGE]
 
-def build_masks(df: pd.DataFrame, units_info: pd.DataFrame, config: dict):
+MASK_COLUMNS = ['unit_id', 'start', 'end', 'reason']
+
+
+def detect_outages(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """D15: silences of the whole channel inside [work_start, data_end).
+
+    Events are the starts and ends of every record in the file, at any level and in any oblast:
+    while the channel posts, some event appears every few hours (longest normal gap is 3.7 h).
+    Returns columns start (last event before the gap), end (first event after it).
     """
-    Builds the 'uncertain status' mask for alerts longer than 24h, 
-    exactly 1h with >3h gap, and beyond data_end.
-    Returns: mask_df, stats_dict
+    work_start, data_end = ts(cfg['periods']['work_start']), ts(cfg['data_end'])
+    min_gap = pd.Timedelta(hours=cfg['thresholds']['outage_gap_hours'])
+    events = pd.concat([df['started_at'], df['finished_at']]).sort_values().drop_duplicates()
+    events = events.reset_index(drop=True)
+    gap = events.diff()
+    i = gap.index[gap > min_gap]
+    out = pd.DataFrame({'start': events[i - 1].reset_index(drop=True),
+                        'end': events[i].reset_index(drop=True)})
+    return out[(out['start'] < data_end) & (out['end'] > work_start)].reset_index(drop=True)
+
+
+def build_masks(df: pd.DataFrame, scope_all: pd.DataFrame, units: pd.DataFrame, cfg: dict
+                ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Build the mask table.
+
+    df: the whole cleaned file (outage detection and the end of the file);
+    scope_all: select_scope(..., period=False), so that next starts outside the period are seen.
+    Returns (masks, outages, stats).
     """
-    df = df.copy()
-    
-    # Filter scope matching units_info
-    exc = config['excluded_oblasts']
-    df_raions = df[(df['level'] == 'raion') & (~df['oblast'].isin(exc))].copy()
-    df_kyiv = df[(df['level'] == 'oblast') & (df['oblast'] == 'Kyiv City')].copy()
-    df_scope = pd.concat([df_raions, df_kyiv])
-    df_scope['loc_key'] = df_scope['raion'].fillna(df_scope['oblast'])
-    
-    # Needs to be sorted by loc_key and started_at to find next_start
-    df_scope = df_scope.sort_values(['loc_key', 'started_at'])
-    df_scope['next_start'] = df_scope.groupby('loc_key')['started_at'].shift(-1)
-    
-    # Rules calculated on original loc_key
-    long_thresh = config['thresholds']['long_alert_hours'] * 3600
-    
-    rule_a_locs = df_scope[df_scope['duration'] > long_thresh].copy()
-    rule_b_locs = df_scope[(df_scope['duration'] == 3600) & 
-                           (df_scope['next_start'].notnull()) & 
-                           ((df_scope['next_start'] - df_scope['started_at']).dt.total_seconds() > 3 * 3600)].copy()
-    
-    # Identify how many are in the test period
-    val_end = pd.to_datetime(config['periods']['val_end'])
-    
-    stats = {
-        'rule_a_loc_total': len(rule_a_locs),
-        'rule_a_loc_test': len(rule_a_locs[rule_a_locs['started_at'] >= val_end]),
-        'rule_b_loc_total': len(rule_b_locs),
-        'rule_b_loc_test': len(rule_b_locs[rule_b_locs['started_at'] >= val_end]),
-    }
+    work_start, data_end = ts(cfg['periods']['work_start']), ts(cfg['data_end'])
+    in_period = lambda m: m[(m['start'] < data_end) & (m['end'] > work_start)]
 
-    # Map to unit_id
-    loc_to_unit = dict(zip(units_info['raion'], units_info['unit_id']))
-    rule_a_locs['unit_id'] = rule_a_locs['loc_key'].map(loc_to_unit)
-    rule_b_locs['unit_id'] = rule_b_locs['loc_key'].map(loc_to_unit)
-    
-    # Merge intervals properly instead of just drop_duplicates
-    masks_a, masks_b = [], []
-    for _, row in rule_a_locs.iterrows():
-        masks_a.append({'unit_id': row['unit_id'], 'start': row['started_at'], 'end': row['finished_at'], 'reason': '>24h'})
-    for _, row in rule_b_locs.iterrows():
-        masks_b.append({'unit_id': row['unit_id'], 'start': row['started_at'], 'end': row['next_start'], 'reason': 'fake_1h'})
-        
-    df_a = pd.DataFrame(masks_a)
-    df_b = pd.DataFrame(masks_b)
-    
-    df_a_merged = _merge_intervals(df_a)
-    df_b_merged = _merge_intervals(df_b)
-    
-    # Combine and merge again to get the absolute non-overlapping mask times
-    mask_df = pd.concat([df_a_merged, df_b_merged], ignore_index=True)
-    if not mask_df.empty:
-        mask_df = _merge_intervals(mask_df)
-    
-    stats['rule_a_unit_total'] = len(df_a_merged)
-    stats['rule_a_unit_test'] = len(df_a_merged[df_a_merged['start'] >= val_end]) if not df_a_merged.empty else 0
-    stats['rule_b_unit_total'] = len(df_b_merged)
-    stats['rule_b_unit_test'] = len(df_b_merged[df_b_merged['start'] >= val_end]) if not df_b_merged.empty else 0
-    
-    # Global rule c: after data_end
-    data_end = pd.to_datetime(config['data_end'])
-    future_end = pd.to_datetime("2099-01-01T00:00:00Z")
-    
-    global_masks = []
-    for uid in units_info['unit_id'].unique():
-        global_masks.append({
-            'unit_id': uid,
-            'start': data_end,
-            'end': future_end,
-            'reason': 'after_data_end'
-        })
-        
-    if not mask_df.empty:
-        mask_df = pd.concat([mask_df, pd.DataFrame(global_masks)], ignore_index=True)
-    else:
-        mask_df = pd.DataFrame(global_masks)
-        
-    mask_df = mask_df.sort_values(['unit_id', 'start']).reset_index(drop=True)
-    
-    # Calculate masked unit-hours
-    work_start = pd.to_datetime(config['periods']['work_start'])
-    train_end = pd.to_datetime(config['periods']['train_end'])
-    
-    def get_intersection_hours(start, end, p_start, p_end):
-        actual_start = max(start, p_start)
-        actual_end = min(end, p_end)
-        if actual_start < actual_end:
-            return (actual_end - actual_start).total_seconds() / 3600.0
-        return 0.0
+    rec = attach_units(scope_all, units)  # processor flags come from select_scope (alerts.processor)
+    rule_a = rec[rec['is_long']]
+    rule_b = rec[rec['is_fake_end']]
 
-    train_h, val_h, test_h = 0.0, 0.0, 0.0
-    for _, row in mask_df[mask_df['reason'] != 'after_data_end'].iterrows():
-        train_h += get_intersection_hours(row['start'], row['end'], work_start, train_end)
-        val_h += get_intersection_hours(row['start'], row['end'], train_end, val_end)
-        test_h += get_intersection_hours(row['start'], row['end'], val_end, data_end)
-        
-    n_units = len(units_info['unit_id'].unique())
-    stats['train_masked_pct'] = (train_h / (n_units * (train_end - work_start).total_seconds() / 3600.0)) * 100
-    stats['val_masked_pct'] = (val_h / (n_units * (val_end - train_end).total_seconds() / 3600.0)) * 100
-    stats['test_masked_pct'] = (test_h / (n_units * (data_end - val_end).total_seconds() / 3600.0)) * 100
-    
-    os.makedirs('data', exist_ok=True)
-    mask_df.to_csv('data/mask.csv', index=False)
-    logger.info("Saved data/mask.csv")
-    
-    return mask_df, stats
+    loc_masks = pd.concat([
+        pd.DataFrame({'unit_id': rule_a['unit_id'], 'start': rule_a['started_at'],
+                      'end': rule_a['finished_at'], 'reason': LONG, 'role': rule_a['role']}),
+        pd.DataFrame({'unit_id': rule_b['unit_id'], 'start': rule_b['started_at'],
+                      'end': rule_b['next_start'], 'reason': FAKE_END, 'role': rule_b['role']}),
+    ], ignore_index=True)
+    loc_masks = in_period(loc_masks)
 
+    outages = detect_outages(df, cfg)
+    file_end = df['finished_at'].max()
+    all_units = units['unit_id'].drop_duplicates()
+    global_masks = [pd.DataFrame({'unit_id': all_units, 'start': data_end, 'end': file_end, 'reason': AFTER_END})]
+    global_masks += [pd.DataFrame({'unit_id': all_units, 'start': o.start, 'end': o.end, 'reason': OUTAGE})
+                     for o in outages.itertuples()]
+
+    parts = [union(g, 'unit_id').assign(reason=reason)
+             for reason, g in pd.concat([loc_masks[MASK_COLUMNS]] + global_masks).groupby('reason')]
+    masks = pd.concat(parts, ignore_index=True)[MASK_COLUMNS]
+    masks['start'] = masks['start'].dt.as_unit('s')
+    masks['end'] = masks['end'].dt.as_unit('s')
+    masks = masks.sort_values(['unit_id', 'start', 'reason']).reset_index(drop=True)
+
+    stats = _stats(loc_masks, masks, units, outages, cfg)
+    return masks, outages, stats
+
+
+def _stats(loc_masks: pd.DataFrame, masks: pd.DataFrame, units: pd.DataFrame,
+           outages: pd.DataFrame, cfg: dict) -> dict:
+    """Counts per rule (source locations and units) and masked share of target unit-hours per part."""
+    p = cfg['periods']
+    bounds = {'train': (ts(p['work_start']), ts(p['train_end'])),
+              'val': (ts(p['train_end']), ts(p['val_end'])),
+              'test': (ts(p['val_end']), ts(cfg['data_end']))}
+    test_start = bounds['test'][0]
+    target_ids = set(units.loc[units['role'] == ROLE_TARGET, 'unit_id'])
+    n_target = len(target_ids)
+
+    stats = {'outages': outages.to_dict('records')}
+    for reason in [LONG, FAKE_END]:
+        lm = loc_masks[(loc_masks['reason'] == reason) & (loc_masks['role'] == ROLE_TARGET)]
+        um = masks[(masks['reason'] == reason) & masks['unit_id'].isin(target_ids)]
+        stats[reason] = {'locations': len(lm), 'locations_test': int((lm['start'] >= test_start).sum()),
+                         'units': len(um), 'units_test': int((um['start'] >= test_start).sum())}
+
+    target = masks[masks['unit_id'].isin(target_ids)]
+    share = {}
+    for name, sel in [(r, target[target['reason'] == r]) for r in [LONG, FAKE_END, OUTAGE]] + [('total', target)]:
+        total = union(sel, 'unit_id')
+        share[name] = {part: clipped_seconds(total['start'], total['end'], lo, hi)
+                       / (n_target * (hi - lo).total_seconds()) * 100
+                       for part, (lo, hi) in bounds.items()}
+    stats['masked_pct'] = share
+    return stats
