@@ -1,0 +1,112 @@
+oblast,raion,unit_id,unit_name
+Cherkaska oblast,Cherkaskyi raion,U013,Cherkaskyi raion
+Cherkaska oblast,Umanskyi raion,U088,Umanskyi raion
+Cherkaska oblast,Zolotoniskyi raion,U101,Zolotoniskyi raion
+Cherkaska oblast,Zvenyhorodskyi raion,U102,Zvenyhorodskyi raion
+Chernihivska oblast,Chernihivskyi raion,U014,Chernihivskyi raion
+Chernihivska oblast,Koriukivskyi raion,U041,Koriukivskyi raion
+Chernihivska oblast,Nizhynskyi raion,U061,Nizhynskyi raion
+Chernihivska oblast,Novhorod-Siverskyi raion,U062,Novhorod-Siverskyi raion
+Chernihivska oblast,Prylutskyi raion,U072,Prylutskyi raion
+Chernivetska oblast,Chernivetskyi raion,U015,Chernivetskyi raion
+Chernivetska oblast,Dnistrovskyi raion,U020,Dnistrovskyi raion
+Chernivetska oblast,Vyzhnytskyi raion,U096,Vyzhnytskyi raion
+Dnipropetrovska oblast,Dniprovskyi raion,U019,Dniprovskyi raion
+Dnipropetrovska oblast,Kamianskyi raion,U032,Kamianskyi raion
+Dnipropetrovska oblast,Kryvorizkyi raion,U049,Kryvorizkyi raion
+Dnipropetrovska oblast,Nikopolskyi raion,U060,Nikopolskyi raion
+Dnipropetrovska oblast,Pavlohradskyi raion,U068,Pavlohradskyi raion
+Dnipropetrovska oblast,Samarivskyi raion,U077,Samarivskyi raion
+Dnipropetrovska oblast,Synelnykivskyi raion,U084,Synelnykivskyi raion
+Ivano-Frankivska oblast,Ivano-Frankivskyi raion,U027,Ivano-Frankivskyi raion
+Ivano-Frankivska oblast,Kaluskyi raion,U030,Kaluskyi raion
+Ivano-Frankivska oblast,Kolomyiskyi raion,U039,Kolomyiskyi raion
+Ivano-Frankivska oblast,Kosivskyi raion,U043,Kosivskyi raion
+Ivano-Frankivska oblast,Nadvirnianskyi raion,U059,Nadvirnianskyi raion
+Ivano-Frankivska oblast,Verkhovynskyi raion,U091,Verkhovynskyi raion
+Kharkivska oblast,Bohodukhivskyi raion,U008,Bohodukhivskyi raion
+Kharkivska oblast,Chuhuivskyi raion,U018,Chuhuivskyi raion
+Kharkivska oblast,Iziumskyi raion,U028,Iziumskyi raion
+Kharkivska oblast,Kharkivskyi raion,U034,Kharkivskyi raion
+Kharkivska oblast,Krasnohradskyi raion,U045,Krasnohradskyi raion
+Kharkivska oblast,Kupianskyi raion,U050,Kupianskyi raion
+Kharkivska oblast,Lozivskyi raion,U052,Lozivskyi raion
+Khersonska oblast,Beryslavskyi raion,U005,Beryslavskyi raion
+Khersonska oblast,Henicheskyi raion,U025,Henicheskyi raion + Kakhovskyi raion + Skadovskyi raion
+Khersonska oblast,Kakhovskyi raion,U025,Henicheskyi raion + Kakhovskyi raion + Skadovskyi raion
+Khersonska oblast,Khersonskyi raion,U035,Khersonskyi raion
+Khersonska oblast,Skadovskyi raion,U025,Henicheskyi raion + Kakhovskyi raion + Skadovskyi raion
+Khmelnytska oblast,Kamianets-Podilskyi raion,U031,Kamianets-Podilskyi raion
+Khmelnytska oblast,Khmelnytskyi raion,U036,Khmelnytskyi raion
+Khmelnytska oblast,Shepetivskyi raion,U080,Shepetivskyi raion
+Kirovohradska oblast,Holovanivskyi raion,U026,Holovanivskyi raion
+Kirovohradska oblast,Kropyvnytskyi raion,U048,Kropyvnytskyi raion
+Kirovohradska oblast,Novoukrainskyi raion,U063,Novoukrainskyi raion
+Kirovohradska oblast,Oleksandriiskyi raion,U067,Oleksandriiskyi raion
+Kyiv City,Kyiv City,U051,Kyiv City
+Kyivska oblast,Bilotserkivskyi raion,U007,Bilotserkivskyi raion
+Kyivska oblast,Boryspilskyi raion,U010,Boryspilskyi raion
+Kyivska oblast,Brovarskyi raion,U011,Brovarskyi raion
+Kyivska oblast,Buchanskyi raion,U012,Buchanskyi raion
+Kyivska oblast,Fastivskyi raion,U023,Fastivskyi raion
+Kyivska oblast,Obukhivskyi raion,U064,Obukhivskyi raion
+Kyivska oblast,Vyshhorodskyi raion,U095,Vyshhorodskyi raion
+Lvivska oblast,Chervonohradskyi raion,U016,Chervonohradskyi raion
+Lvivska oblast,Drohobytskyi raion,U021,Drohobytskyi raion
+Lvivska oblast,Lvivskyi raion,U055,Lvivskyi raion
+Lvivska oblast,Sambirskyi raion,U078,Sambirskyi raion
+Lvivska oblast,Stryiskyi raion,U082,Stryiskyi raion
+Lvivska oblast,Yavorivskyi raion,U097,Yavorivskyi raion
+Lvivska oblast,Zolochivskyi raion,U100,Zolochivskyi raion
+Mykolaivska oblast,Bashtanskyi raion,U000,Bashtanskyi raion
+Mykolaivska oblast,Mykolaivskyi raion,U057,Mykolaivskyi raion
+Mykolaivska oblast,Pervomaiskyi raion,U069,Pervomaiskyi raion
+Mykolaivska oblast,Voznesenskyi raion,U094,Voznesenskyi raion
+Odeska oblast,Berezivskyi raion,U004,Berezivskyi raion
+Odeska oblast,Bilhorod-Dnistrovskyi raion,U006,Bilhorod-Dnistrovskyi raion
+Odeska oblast,Bolhradskyi raion,U009,Bolhradskyi raion
+Odeska oblast,Izmailskyi raion,U029,Izmailskyi raion
+Odeska oblast,Odeskyi raion,U065,Odeskyi raion
+Odeska oblast,Podilskyi raion,U070,Podilskyi raion
+Odeska oblast,Rozdilnianskyi raion,U076,Rozdilnianskyi raion
+Poltavska oblast,Kremenchutskyi raion,U046,Kremenchutskyi raion
+Poltavska oblast,Lubenskyi raion,U053,Lubenskyi raion
+Poltavska oblast,Myrhorodskyi raion,U058,Myrhorodskyi raion
+Poltavska oblast,Poltavskyi raion,U071,Poltavskyi raion
+Rivnenska oblast,Dubenskyi raion,U022,Dubenskyi raion
+Rivnenska oblast,Rivnenskyi raion,U074,Rivnenskyi raion
+Rivnenska oblast,Sarnenskyi raion,U079,Sarnenskyi raion
+Rivnenska oblast,Varaskyi raion,U090,Varaskyi raion
+Sumska oblast,Konotopskyi raion,U040,Konotopskyi raion
+Sumska oblast,Okhtyrskyi raion,U066,Okhtyrskyi raion
+Sumska oblast,Romenskyi raion,U075,Romenskyi raion
+Sumska oblast,Shostkynskyi raion,U081,Shostkynskyi raion
+Sumska oblast,Sumskyi raion,U083,Sumskyi raion
+Ternopilska oblast,Chortkivskyi raion,U017,Chortkivskyi raion
+Ternopilska oblast,Kremenetskyi raion,U047,Kremenetskyi raion
+Ternopilska oblast,Ternopilskyi raion,U085,Ternopilskyi raion
+Vinnytska oblast,Haisynskyi raion,U024,Haisynskyi raion
+Vinnytska oblast,Khmilnytskyi raion,U037,Khmilnytskyi raion
+Vinnytska oblast,Mohyliv-Podilskyi raion,U056,Mohyliv-Podilskyi raion
+Vinnytska oblast,Tulchynskyi raion,U087,Tulchynskyi raion
+Vinnytska oblast,Vinnytskyi raion,U092,Vinnytskyi raion
+Vinnytska oblast,Zhmerynskyi raion,U098,Zhmerynskyi raion
+Volynska oblast,Kamin-Kashyrskyi raion,U033,Kamin-Kashyrskyi raion
+Volynska oblast,Kovelskyi raion,U044,Kovelskyi raion
+Volynska oblast,Lutskyi raion,U054,Lutskyi raion
+Volynska oblast,Volodymyr-Volynskyi raion,U093,Volodymyr-Volynskyi raion
+Zakarpatska oblast,Berehivskyi raion,U003,Berehivskyi raion + Mukachivskyi raion
+Zakarpatska oblast,Khustskyi raion,U038,Khustskyi raion
+Zakarpatska oblast,Mukachivskyi raion,U003,Berehivskyi raion + Mukachivskyi raion
+Zakarpatska oblast,Rakhivskyi raion,U073,Rakhivskyi raion
+Zakarpatska oblast,Tiachivskyi raion,U086,Tiachivskyi raion
+Zakarpatska oblast,Uzhhorodskyi raion,U089,Uzhhorodskyi raion
+Zaporizka oblast,Berdianskyi raion,U001,Berdianskyi raion + Melitopolskyi raion + Polohivskyi raion + Vasylivskyi raion + Zaporizkyi raion
+Zaporizka oblast,Melitopolskyi raion,U001,Berdianskyi raion + Melitopolskyi raion + Polohivskyi raion + Vasylivskyi raion + Zaporizkyi raion
+Zaporizka oblast,Polohivskyi raion,U001,Berdianskyi raion + Melitopolskyi raion + Polohivskyi raion + Vasylivskyi raion + Zaporizkyi raion
+Zaporizka oblast,Vasylivskyi raion,U001,Berdianskyi raion + Melitopolskyi raion + Polohivskyi raion + Vasylivskyi raion + Zaporizkyi raion
+Zaporizka oblast,Zaporizkyi raion,U001,Berdianskyi raion + Melitopolskyi raion + Polohivskyi raion + Vasylivskyi raion + Zaporizkyi raion
+Zhytomyrska oblast,Berdychivskyi raion,U002,Berdychivskyi raion
+Zhytomyrska oblast,Korostenskyi raion,U042,Korostenskyi raion
+Zhytomyrska oblast,Zhytomyrskyi raion,U099,Zhytomyrskyi raion
+Zhytomyrska oblast,Zviahelskyi raion,U103,Zviahelskyi raion
