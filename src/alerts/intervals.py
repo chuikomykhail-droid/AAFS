@@ -7,6 +7,10 @@ One table, two levels:
            target counts. Merging a pause needs the next start, so the episode END and the
            "under alert" state inside a bridged pause come from the future (D16): never read
            them as of t; use alerts.history.AlertHistory instead.
+
+`end_utc` is the recorded end. `open_until` is until when the segment looked open to a real-time
+observer: an invented end start + 1 h is written only at the next start (alerts.processor), so
+AlertHistory reads the state from open_until, never from end_utc.
 """
 import logging
 
@@ -20,7 +24,7 @@ from alerts.timeutil import to_sec
 
 logger = logging.getLogger(__name__)
 
-INTERVAL_COLUMNS = ['unit_id', 'start_utc', 'end_utc', 'uncertain', 'episode', 'n_records']
+INTERVAL_COLUMNS = ['unit_id', 'start_utc', 'end_utc', 'open_until', 'uncertain', 'episode', 'n_records']
 
 
 def build_intervals(scope: pd.DataFrame, units: pd.DataFrame, masks: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -29,15 +33,15 @@ def build_intervals(scope: pd.DataFrame, units: pd.DataFrame, masks: pd.DataFram
     `uncertain`: the segment overlaps a mask of rules (a), (b) or (d), so its end is unreliable.
     The flag is retrospective (it depends on the future) and must not become a feature.
     """
-    rec = attach_units(scope, units)[['unit_id', 'started_at', 'finished_at']]
+    rec = attach_units(scope, units)[['unit_id', 'started_at', 'finished_at', 'open_until']]
     rec = rec.sort_values(['unit_id', 'started_at', 'finished_at']).reset_index(drop=True)
     rec['uncertain'] = _overlaps_masks(rec, masks)
 
     seg_id = merge_labels(rec, 'unit_id', 'started_at', 'finished_at')
     seg = (rec.groupby(seg_id)
               .agg(unit_id=('unit_id', 'first'), start_utc=('started_at', 'min'),
-                   end_utc=('finished_at', 'max'), uncertain=('uncertain', 'any'),
-                   n_records=('unit_id', 'size'))
+                   end_utc=('finished_at', 'max'), open_until=('open_until', 'max'),
+                   uncertain=('uncertain', 'any'), n_records=('unit_id', 'size'))
               .reset_index(drop=True))
 
     pause = pd.Timedelta(minutes=cfg['thresholds']['pause_merge_min'])

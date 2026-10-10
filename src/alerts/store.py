@@ -30,4 +30,5 @@ def load_masks(cfg: dict) -> pd.DataFrame:
 def load_intervals(cfg: dict) -> pd.DataFrame:
     iv = pd.read_csv(path(cfg, 'intervals'))[INTERVAL_COLUMNS]
     return iv.assign(start_utc=_utc(iv['start_utc']), end_utc=_utc(iv['end_utc']),
+                     open_until=_utc(iv['open_until']),
                      uncertain=iv['uncertain'].astype(bool))

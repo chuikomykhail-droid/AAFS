@@ -29,6 +29,31 @@ def test_bridged_pause_is_quiet_as_of_t(cfg):
     assert h.seconds_active(T, 3 * H)[:, 1].tolist() == [30 * 60, 50 * 60, 75 * 60]
 
 
+def test_invented_end_stays_open_until_next_alert(cfg):
+    """A record of exactly 1 h may carry the processor's invented end, written only at the next start.
+
+    Until then no all-clear had been seen, so the alert is open. The decision uses the record alone:
+    whether the next alert comes after 2 h (a real end, retrospectively) or after 5 h (rule (b))
+    is the future and must not change the answer at 12:00.
+    """
+    T = pd.DatetimeIndex([utc('2026-01-10T10:30:00Z'), utc('2026-01-10T12:00:00Z')])
+    answers = []
+    for next_start in ['2026-01-10T12:30:00Z', '2026-01-10T15:00:00Z']:
+        nxt = utc(next_start)
+        rows = [('B', 'Raion 3', 'raion', '2026-01-10T10:00:00Z', '2026-01-10T11:00:00Z'),  # exactly 1 h
+                ('B', 'Raion 3', 'raion', nxt, nxt + 30 * pd.Timedelta(minutes=1))]
+        h = history(rows, cfg)
+        answers.append((h.active(T)[:, 1].tolist(), h.seconds_since_end(T)[:, 1].tolist(),
+                        h.seconds_active(T, 3 * H)[:, 1].tolist()))
+        # once the next alert has started, the unit is under alert without a gap
+        assert h.active(pd.DatetimeIndex([nxt - pd.Timedelta(seconds=1), nxt]))[:, 1].tolist() == [True, True]
+    np.testing.assert_equal(answers[0], answers[1])        # NaN-aware comparison
+    active, since_end, seconds = answers[0]
+    assert active == [True, True]
+    assert np.isnan(since_end).all()                       # no end has been seen yet
+    assert seconds == [30 * 60, 120 * 60]
+
+
 def test_corrupting_the_future_changes_nothing(cfg):
     """Rebuild intervals after replacing every timestamp later than t with noise: answers at <= t stay."""
     rng = np.random.default_rng(0)
@@ -37,7 +62,9 @@ def test_corrupting_the_future_changes_nothing(cfg):
     for _ in range(400):
         ob, ra = locs[rng.integers(3)]
         s = t0 + pd.Timedelta(seconds=int(rng.integers(0, 20 * 86400)))
-        rows.append((ob, ra, 'raion', s, s + pd.Timedelta(seconds=int(rng.integers(60, 4 * 3600)))))
+        # every fifth record has the processor's invented length of exactly 1 h
+        length = 3600 if rng.random() < 0.2 else int(rng.integers(60, 4 * 3600))
+        rows.append((ob, ra, 'raion', s, s + pd.Timedelta(seconds=length)))
     t = utc('2026-01-15T12:00:00Z')
 
     def noise():

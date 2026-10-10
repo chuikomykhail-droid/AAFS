@@ -137,16 +137,21 @@ def _stage2_md(art, cfg) -> str:
         sel = ep_t[(ep_t['start_utc'] >= lo) & (ep_t['start_utc'] < hi)]
         lines.append(f"| {part} | {len(sel):,} | {int(sel['uncertain'].sum())} |")
 
-    # D16: how often the episode table would claim "under alert" while the unit was quiet
+    # D12, D16: where reading the tables naively as of t would differ from what was seen in real time
     T = pd.date_range(ts(cfg['periods']['warmup_end']), ts(cfg['data_end']), freq='h', inclusive='left')
-    seg_active = AlertHistory(iv, tgt).active(T)
+    recorded = np.column_stack([_active(iv_t[iv_t['unit_id'] == u], T) for u in tgt])
     ep_active = np.column_stack([_active(ep_t[ep_t['unit_id'] == u], T) for u in tgt])
-    bridged = ep_active & ~seg_active
-    lines += ['', '## Bridged pauses on the hourly grid (D12, D16)', '',
+    seen = AlertHistory(iv, tgt).active(T)
+    bridged = ep_active & ~recorded
+    held_open = seen & ~recorded
+    lines += ['', '## As-of state on the hourly grid (D12, D16)', '',
               f'- Hourly moments from warmup_end to data_end: {len(T):,}',
-              f'- Unit-moments inside a bridged pause (episode says "alert", segments say "quiet"): {bridged.sum():,}',
-              f'- Moments with at least one such unit: {bridged.any(axis=1).sum():,} '
-              f'({bridged.any(axis=1).mean():.1%}); cross-unit "now" features must read segments']
+              f'- Bridged pauses: episode says "alert", recorded segments say "quiet": {bridged.sum():,} '
+              f'unit-moments, {bridged.any(axis=1).sum():,} moments ({bridged.any(axis=1).mean():.1%})',
+              f'- Invented ends: recorded segments say "quiet", but no all-clear had been seen, so '
+              f'AlertHistory keeps the alert open: {held_open.sum():,} unit-moments, '
+              f'{held_open.any(axis=1).sum():,} moments ({held_open.any(axis=1).mean():.1%})',
+              '- Features read the state only through AlertHistory']
     lines += ['', '## Outages (D15)', '']
     lines += [f'- {o.start} -> {o.end} ({o.end - o.start})' for o in art.outages.itertuples()] or ['- none']
     return '\n'.join(lines) + '\n'

@@ -1,12 +1,16 @@
 """As-of access to alert history (D16): the only way features should read intervals.
 
-Information set at moment t: every event with timestamp <= t. An alert that started at or
-before t and has no end <= t is active; its recorded end is never returned. The target uses
-(t, t+h], so the two never share an event.
+Information set at moment t: everything a real-time observer of the channel had seen by t.
+An alert that started at or before t and had not been seen to end by t is active; its end is
+never returned. The target uses (t, t+h], so the two never share an event.
+
+The state is read from [start_utc, open_until), not from the recorded end:
+  * an invented end start + 1 h (alerts.processor) is written only at the next start, so until
+    then the alert stays open, as the observer saw it (no all-clear arrived);
+  * segments are not bridged across pauses (D12), so a unit in a short pause is quiet.
 
 What is deliberately not exposed, because it depends on the future:
-  * episode ends and the "under alert" state inside a bridged pause (D12): state comes from
-    segments, so a unit in a short pause is quiet, as it was in real time;
+  * episode ends;
   * masks of rules (a), (b) and the `uncertain` flag (known only after 24 h or at the next start).
 Outages (D15) are exposed clipped at t: a silent channel is observable while it is silent.
 
@@ -24,15 +28,19 @@ from alerts.timeutil import to_sec
 class AlertHistory:
     def __init__(self, intervals: pd.DataFrame, unit_ids, masks: pd.DataFrame | None = None):
         self.unit_ids = list(unit_ids)
+        # Held-open segments can overlap later ones: rebuild disjoint "seen as open" intervals
+        seen = union(intervals.rename(columns={'start_utc': 'start', 'open_until': 'end'})
+                     [['unit_id', 'start', 'end']], 'unit_id')
         self._seg = {}
         self._ep_start = {}
         for u in self.unit_ids:
-            g = intervals[intervals['unit_id'] == u].sort_values('start_utc')
-            s, e = to_sec(g['start_utc']), to_sec(g['end_utc'])
-            # cumulative duration of all segments before segment k
+            g = seen[seen['unit_id'] == u]
+            s, e = to_sec(g['start']), to_sec(g['end'])
+            # cumulative duration of all intervals before interval k
             before = np.concatenate([[0], np.cumsum(e - s)[:-1]]) if len(s) else np.zeros(0, np.int64)
             self._seg[u] = (s, e, before)
-            self._ep_start[u] = np.sort(to_sec(g.groupby('episode')['start_utc'].min()))
+            ep = intervals[intervals['unit_id'] == u]
+            self._ep_start[u] = np.sort(to_sec(ep.groupby('episode')['start_utc'].min()))
         out = (masks[masks['reason'] == OUTAGE] if masks is not None else pd.DataFrame(columns=['start', 'end']))
         out = union(out.assign(k=0), 'k') if len(out) else out
         self._outage = (to_sec(out['start']), to_sec(out['end'])) if len(out) else (np.zeros(0, np.int64),) * 2

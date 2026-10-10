@@ -15,7 +15,7 @@ reason but may overlap across reasons. Use spans.union() for the total masked ti
 import pandas as pd
 
 from alerts.config import ts
-from alerts.scope import LOC_KEY, ROLE_TARGET, attach_units
+from alerts.scope import ROLE_TARGET, attach_units
 from alerts.spans import clipped_seconds, union
 
 LONG = 'long_24h'
@@ -58,14 +58,9 @@ def build_masks(df: pd.DataFrame, scope_all: pd.DataFrame, units: pd.DataFrame, 
     work_start, data_end = ts(cfg['periods']['work_start']), ts(cfg['data_end'])
     in_period = lambda m: m[(m['start'] < data_end) & (m['end'] > work_start)]
 
-    rec = attach_units(scope_all, units).sort_values(LOC_KEY + ['started_at'])
-    rec['next_start'] = rec.groupby(LOC_KEY, sort=False)['started_at'].shift(-1)
-
-    long_s = cfg['thresholds']['long_alert_hours'] * 3600
-    fake_s = cfg['processor']['fake_end_duration_s']
-    fake_gap = pd.Timedelta(hours=cfg['processor']['fake_end_next_start_h'])
-    rule_a = rec[rec['duration'] > long_s]
-    rule_b = rec[(rec['duration'] == fake_s) & ((rec['next_start'] - rec['started_at']) > fake_gap)]
+    rec = attach_units(scope_all, units)  # processor flags come from select_scope (alerts.processor)
+    rule_a = rec[rec['is_long']]
+    rule_b = rec[rec['is_fake_end']]
 
     loc_masks = pd.concat([
         pd.DataFrame({'unit_id': rule_a['unit_id'], 'start': rule_a['started_at'],

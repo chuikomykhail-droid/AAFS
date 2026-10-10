@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from alerts.config import ts
+from alerts.processor import flag_records
 
 LEVEL_RAION = 'raion'
 LEVEL_OBLAST = 'oblast'
@@ -22,9 +23,12 @@ def select_scope(df: pd.DataFrame, cfg: dict, period: bool = True) -> pd.DataFra
         oblast-level records of `oblast_level_units` (Kyiv, D05); for those, raion = oblast name.
     role='input': raion-level records of input-only oblasts (Donetsk, D06): features only.
 
+    Processor flags (next_start, is_long, is_fake_end, open_until; see alerts.processor) are
+    computed over all records of a location before the period filter, so that a next start
+    beyond data_end is still seen.
+
     period=True keeps records that overlap [work_start, data_end) and does not clip them:
-    clipping would invent an alert start at work_start. period=False is for rules that need
-    neighbouring records outside the period (next start in mask rule (b)).
+    clipping would invent an alert start at work_start.
     """
     sc = cfg['scope']
     _check_oblast_names(df, sc)
@@ -44,6 +48,7 @@ def select_scope(df: pd.DataFrame, cfg: dict, period: bool = True) -> pd.DataFra
     out = df.loc[target | inputs, cols].copy()
     out['role'] = np.where(inputs[target | inputs], ROLE_INPUT, ROLE_TARGET)
     out['raion'] = out['raion'].fillna(out['oblast'])
+    out = flag_records(out, cfg, LOC_KEY)
 
     if period:
         work_start, data_end = ts(cfg['periods']['work_start']), ts(cfg['data_end'])
