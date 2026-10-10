@@ -1,107 +1,115 @@
-import pandas as pd
-import numpy as np
-from itertools import combinations
-import networkx as nx
-import os
+"""Units and clone merging (D05, D06, D07). Pure functions: nothing is written to disk here."""
 import logging
+
+import numpy as np
+import pandas as pd
+
+from alerts.config import ts
+from alerts.scope import LOC_KEY, ROLE_INPUT, ROLE_TARGET
+from alerts.timeutil import to_sec
 
 logger = logging.getLogger(__name__)
 
-def build_units(df: pd.DataFrame, config: dict) -> pd.DataFrame:
-    """
-    Extracts units (raions + Kyiv), computes Jaccard similarity on the train period,
-    merges clones (>= 0.997), and saves the mapping.
-    """
-    exc = config['excluded_oblasts']
-    
-    # 1. Filter Scope
-    df_raions = df[(df['level'] == 'raion') & (~df['oblast'].isin(exc))].copy()
-    df_kyiv = df[(df['level'] == 'oblast') & (df['oblast'] == 'Kyiv City')].copy()
-    
-    df_scope = pd.concat([df_raions, df_kyiv])
-    df_scope['raion'] = df_scope['raion'].fillna(df_scope['oblast'])
-    
-    units_info = df_scope[['oblast', 'raion']].drop_duplicates().sort_values(['oblast', 'raion']).reset_index(drop=True)
-    logger.info(f"Initial unique locations (raions + Kyiv): {len(units_info)}")
-    
-    # 2. Build 1-minute grid for the train period
-    train_start = pd.to_datetime(config['periods']['work_start'])
-    train_end = pd.to_datetime(config['periods']['train_end'])
-    
-    df_train = df_scope[(df_scope['started_at'] < train_end) & (df_scope['finished_at'] > train_start)].copy()
-    
-    minutes = int((train_end - train_start).total_seconds() // 60)
-    grid = np.zeros((len(units_info), minutes), dtype=bool)
-    
-    unit_to_idx = {row.raion: i for i, row in units_info.iterrows()}
-    
-    for _, row in df_train.iterrows():
-        idx = unit_to_idx[row['raion']]
-        start_m = int(max(0, (row['started_at'] - train_start).total_seconds() // 60))
-        end_m = int(min(minutes, (row['finished_at'] - train_start).total_seconds() // 60))
-        if start_m < end_m:
-            grid[idx, start_m:end_m] = True
-            
-    # 3. Compute Jaccard similarities within oblasts
-    G = nx.Graph()
-    for _, row in units_info.iterrows():
-        G.add_node(row.raion, oblast=row.oblast)
-        
-    high_sim_pairs = []
-    clone_threshold = config['thresholds']['clone_jaccard']
-    
-    for ob in units_info['oblast'].unique():
-        ob_units = units_info[units_info['oblast'] == ob]['raion'].tolist()
-        for u1, u2 in combinations(ob_units, 2):
-            idx1 = unit_to_idx[u1]
-            idx2 = unit_to_idx[u2]
-            
-            arr1 = grid[idx1]
-            arr2 = grid[idx2]
-            
-            intersection = np.sum(arr1 & arr2)
-            union = np.sum(arr1 | arr2)
-            
-            jaccard = intersection / union if union > 0 else 1.0
-            
-            if jaccard >= clone_threshold:
-                G.add_edge(u1, u2)
-            
-            if jaccard >= 0.95:
-                high_sim_pairs.append({
-                    'oblast': ob,
-                    'raion1': u1,
-                    'raion2': u2,
-                    'jaccard': jaccard
-                })
-                
-    # 4. Connected components
-    comps = list(nx.connected_components(G))
-    logger.info(f"Total merged units (components): {len(comps)}")
-    
-    unit_id_map = {}
-    unit_names = {}
-    
-    # Sort components by their first element to ensure stable IDs
-    comps = sorted([sorted(list(c)) for c in comps], key=lambda x: x[0])
-    
-    for i, comp in enumerate(comps):
-        uid = f"U{i:03d}"
-        uname = " + ".join(comp)
-        for r in comp:
-            unit_id_map[r] = uid
-            unit_names[r] = uname
-            
-    units_info['unit_id'] = units_info['raion'].map(unit_id_map)
-    units_info['unit_name'] = units_info['raion'].map(unit_names)
-    
-    os.makedirs('data', exist_ok=True)
-    units_info.to_csv('data/units.csv', index=False)
-    logger.info("Saved data/units.csv")
-    
-    os.makedirs('reports', exist_ok=True)
-    pd.DataFrame(high_sim_pairs).sort_values('jaccard', ascending=False).to_csv('reports/high_sim_pairs.csv', index=False)
-    logger.info("Saved reports/high_sim_pairs.csv")
-    
-    return units_info
 
+def build_units(scope: pd.DataFrame, cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Map every location to a unit.
+
+    Target locations: Jaccard similarity of 1-minute "under alert" series on the train period
+    within each oblast; connected components over edges >= clone_jaccard become one unit (D07).
+    Input-only oblasts (D06): one unit per oblast, `I00`, `I01`, ...
+
+    Returns (units, pairs): units has columns oblast, raion, unit_id, unit_name, role;
+    pairs holds the Jaccard similarity of every same-oblast pair of target locations.
+    """
+    target = scope[scope['role'] == ROLE_TARGET]
+    locs = target[LOC_KEY].drop_duplicates().sort_values(LOC_KEY).reset_index(drop=True)
+    logger.info(f'Target locations (raions + Kyiv): {len(locs)}')
+
+    grid = _minute_grid(target, locs, ts(cfg['periods']['work_start']), ts(cfg['periods']['train_end']))
+    pairs = _pair_similarity(grid, locs)
+
+    edges = pairs.loc[pairs['jaccard'] >= cfg['thresholds']['clone_jaccard'], ['i', 'j']].to_numpy()
+    comp = _components(len(locs), edges)
+
+    # Stable ids: components ordered by their alphabetically first raion
+    members = pd.DataFrame({'comp': comp, 'raion': locs['raion'], 'oblast': locs['oblast']})
+    first = members.sort_values(['raion', 'oblast']).groupby('comp')['raion'].first()
+    order = first.sort_values(kind='stable').index
+    comp_to_id = {c: f'U{i:03d}' for i, c in enumerate(order)}
+    names = members.sort_values('raion').groupby('comp')['raion'].agg(' + '.join)
+
+    units = locs.assign(unit_id=[comp_to_id[c] for c in comp],
+                        unit_name=[names[c] for c in comp],
+                        role=ROLE_TARGET)
+    logger.info(f'Target units after clone merging: {units["unit_id"].nunique()}')
+
+    inputs = scope.loc[scope['role'] == ROLE_INPUT, LOC_KEY].drop_duplicates().sort_values(LOC_KEY)
+    input_ids = {ob: f'I{i:02d}' for i, ob in enumerate(sorted(inputs['oblast'].unique()))}
+    inputs = inputs.assign(unit_id=inputs['oblast'].map(input_ids), unit_name=inputs['oblast'], role=ROLE_INPUT)
+
+    units = pd.concat([units, inputs], ignore_index=True)
+    pairs = pairs.drop(columns=['i', 'j']).sort_values('jaccard', ascending=False, kind='stable')
+    return units, pairs.reset_index(drop=True)
+
+
+def _minute_grid(records: pd.DataFrame, locs: pd.DataFrame, t0: pd.Timestamp, t1: pd.Timestamp) -> np.ndarray:
+    """Boolean [location, minute] matrix of "under alert" on [t0, t1).
+
+    Minute indices are floor((t - t0) / 60) for both ends, as in the original D07 computation.
+    Built with a +1/-1 difference array and a cumulative sum instead of per-record slicing.
+    """
+    n_min = int((t1 - t0) // pd.Timedelta(minutes=1))
+    rec = records[(records['started_at'] < t1) & (records['finished_at'] > t0)]
+    loc_idx = rec[LOC_KEY].merge(locs.reset_index(), on=LOC_KEY, how='left')['index'].to_numpy()
+    base = to_sec(t0)
+    start_m = np.clip((to_sec(rec['started_at']) - base) // 60, 0, n_min)
+    end_m = np.clip((to_sec(rec['finished_at']) - base) // 60, 0, n_min)
+    keep = start_m < end_m
+
+    grid = np.zeros((len(locs), n_min), dtype=bool)
+    for i in range(len(locs)):
+        sel = keep & (loc_idx == i)
+        diff = np.zeros(n_min + 1, dtype=np.int32)
+        np.add.at(diff, start_m[sel], 1)
+        np.add.at(diff, end_m[sel], -1)
+        grid[i] = np.cumsum(diff[:-1]) > 0
+    return grid
+
+
+def _pair_similarity(grid: np.ndarray, locs: pd.DataFrame) -> pd.DataFrame:
+    """Jaccard of every same-oblast pair: |A & B| / |A | B| via one matrix product per oblast.
+
+    float32 sums are exact here: minute counts stay far below 2**24. A pair with an empty union
+    gets 0, never 1: two silent locations are not evidence of being clones.
+    """
+    rows = []
+    for oblast, idx in locs.groupby('oblast').groups.items():
+        idx = np.asarray(idx)
+        x = grid[idx].astype(np.float32)
+        inter = (x @ x.T).astype(np.float64)
+        size = np.diag(inter)
+        uni = size[:, None] + size[None, :] - inter
+        jac = np.divide(inter, uni, out=np.zeros_like(inter), where=uni > 0)
+        a, b = np.triu_indices(len(idx), k=1)
+        rows.append(pd.DataFrame({'oblast': oblast,
+                                  'raion1': locs['raion'].to_numpy()[idx[a]],
+                                  'raion2': locs['raion'].to_numpy()[idx[b]],
+                                  'jaccard': jac[a, b], 'i': idx[a], 'j': idx[b]}))
+    return pd.concat(rows, ignore_index=True)
+
+
+def _components(n: int, edges: np.ndarray) -> np.ndarray:
+    """Connected component label per node (union-find)."""
+    parent = np.arange(n)
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    return np.array([find(i) for i in range(n)])
