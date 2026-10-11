@@ -1,2 +1,2 @@
 # AAFS
-Air Alarts Forecasting System
+Air Alerts Forecasting System
