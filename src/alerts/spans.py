@@ -37,6 +37,28 @@ def clipped_seconds(start: pd.Series, end: pd.Series, lo: pd.Timestamp, hi: pd.T
     return float(((e - s).dt.total_seconds()).clip(lower=0).sum())
 
 
+def covers(s: np.ndarray, e: np.ndarray, x: np.ndarray) -> np.ndarray:
+    """Is each moment x inside one of the disjoint sorted half-open intervals [s, e)? int64 seconds."""
+    if len(s) == 0:
+        return np.zeros(len(x), dtype=bool)
+    k = np.searchsorted(s, x, side='right') - 1
+    return (k >= 0) & (e[np.maximum(k, 0)] > x)
+
+
+def reaches(s: np.ndarray, e: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """Does the open window (lo, hi) overlap one of the disjoint sorted intervals [s, e)?"""
+    if len(s) == 0:
+        return np.zeros(len(lo), dtype=bool)
+    j = np.searchsorted(e, lo, side='right')  # first interval ending after lo; ends are sorted
+    jj = np.minimum(j, len(s) - 1)
+    return (j < len(s)) & (s[jj] < hi)
+
+
+def count_in(points: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """Number of sorted points in (lo, hi]."""
+    return np.searchsorted(points, hi, side='right') - np.searchsorted(points, lo, side='right')
+
+
 def overlaps(rec_start: np.ndarray, rec_end: np.ndarray,
              m_start: np.ndarray, m_end: np.ndarray) -> np.ndarray:
     """For each record [rec_start, rec_end), does it overlap any of the disjoint sorted intervals?

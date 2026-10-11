@@ -3,7 +3,7 @@ import pandas as pd
 from conftest import records, units_table, utc
 
 from alerts.history import AlertHistory
-from alerts.intervals import build_intervals
+from alerts.intervals import build_intervals, build_seen
 from alerts.mask import MASK_COLUMNS
 from alerts.scope import select_scope
 
@@ -13,8 +13,9 @@ H = pd.Timedelta(hours=1)
 
 
 def history(rows, cfg):
-    iv = build_intervals(select_scope(records(rows), cfg), UNITS, NO_MASKS, cfg)
-    return AlertHistory(iv, ['U_A', 'U_B'])
+    scope = select_scope(records(rows), cfg)
+    iv = build_intervals(scope, UNITS, NO_MASKS, cfg)
+    return AlertHistory(build_seen(scope, UNITS, cfg), iv, ['U_A', 'U_B'])
 
 
 def test_bridged_pause_is_quiet_as_of_t(cfg):
@@ -52,6 +53,20 @@ def test_invented_end_stays_open_until_next_alert(cfg):
     assert active == [True, True]
     assert np.isnan(since_end).all()                       # no end has been seen yet
     assert seconds == [30 * 60, 120 * 60]
+
+
+def test_alert_without_all_clear_stops_counting_after_cap(cfg):
+    """D19: one record open for 30 h counts as active for 24 h only; a unit made of several raions
+    whose overlapping records chain for 40 h stays active all along (the cap is per record)."""
+    rows = [('B', 'Raion 3', 'raion', '2026-01-10T00:00:00Z', '2026-01-11T06:00:00Z')]   # 30 h, one record
+    t0 = utc('2026-01-10T00:00:00Z')
+    for k in range(5):                                                                   # U_A: 5 x 10 h, overlapping
+        ra = 'Raion 1' if k % 2 == 0 else 'Raion 2'
+        rows.append(('A', ra, 'raion', t0 + k * 8 * H, t0 + k * 8 * H + 10 * H))
+    h = history(rows, cfg)
+    T = pd.DatetimeIndex([t0 + 23 * H, t0 + 25 * H, t0 + 39 * H])
+    assert h.active(T)[:, 1].tolist() == [True, False, False]
+    assert h.active(T)[:, 0].tolist() == [True, True, True]
 
 
 def test_corrupting_the_future_changes_nothing(cfg):
