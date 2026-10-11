@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/*.parquet
+reviews/scratch/
 
 # secrets: never in version control
 alerts_api/token.txt
