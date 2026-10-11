@@ -5,16 +5,11 @@ the baselines), never on the test part (PLAN rule 6).
 """
 import logging
 
-import matplotlib
+import numpy as np
+import pandas as pd
 
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-
-from alerts import backtest  # noqa: E402
-from alerts.metrics import METRICS, bootstrap, calibration, score  # noqa: E402
-from alerts.report import INK, INK_2, SERIES, SURFACE, _save, _style, _title  # noqa: E402
+from alerts import backtest, figures
+from alerts.metrics import METRICS, bootstrap, calibration, score
 
 logger = logging.getLogger(__name__)
 
@@ -114,24 +109,4 @@ def write_report(res: dict, cfg: dict, out_dir, extra_md: str = '') -> None:
             f"{g.at[m, 'value']:.3f} [{g.at[m, 'lo']:.3f}, {g.at[m, 'hi']:.3f}]" for m in names) + ' |')
     lines += ['', f'Calibration on the test part: `figures/calibration_h{h}.png`.', '', extra_md]
     (out_dir / f'backtest_h{h}.md').write_text('\n'.join(lines).rstrip() + '\n', encoding='utf-8')
-    _fig_calibration(res, out_dir / 'figures' / f'calibration_h{h}.png')
-
-
-def _fig_calibration(res: dict, file) -> None:
-    """Reliability curves of the test part; small multiples, one panel per model."""
-    names = res['models']
-    fig, axes = plt.subplots(1, len(names), figsize=(3.2 * len(names), 3.6), sharey=True, squeeze=False)
-    fig.subplots_adjust(top=0.74, left=0.07, right=0.98, bottom=0.17, wspace=0.12)
-    for ax, m in zip(axes[0], names):
-        c = res['calibration'][m]
-        ax.plot([0, 1], [0, 1], color=INK_2, linewidth=1, linestyle='--')
-        ax.plot(c['p_mean'], c['y_rate'], color=SERIES[0], linewidth=2, marker='o', markersize=4)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.set_title(m, color=INK, fontsize=10, loc='left')
-        ax.set_xlabel('predicted', color=INK_2, fontsize=9)
-        _style(ax, grid_axis='both')
-    axes[0][0].set_ylabel('observed rate', color=INK_2, fontsize=9)
-    _title(fig, f'Calibration on the test part, h = {res["h"]}',
-           'Ten quantile bins of the prediction; the dashed line is perfect calibration')
-    _save(fig, file)
+    figures.calibration(res, out_dir / 'figures' / f'calibration_h{h}.png')

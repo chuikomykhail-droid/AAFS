@@ -1,6 +1,8 @@
 """Features for every grid row, computed as of t and vectorised over all moments (PLAN stage 5; D16, D19).
 
-Every feature reads alert history only through AlertHistory, so it uses events with timestamp <= t.
+The builder receives an AlertHistory and never the raw tables (intervals, seen, masks): a new
+feature can only use what was known at t. tests/test_knowledge.py checks every feature against a
+replay of what the dataset contained at a cut, so a feature that slips past this rule fails there.
 The state of a unit "now" comes from the seen table (no bridged pauses, invented ends kept open,
 alerts without an all-clear dropped after history.max_open_hours). Oblast and country features
 include the input-only unit of Donetsk oblast (D06). Neighbours come from the raion boundaries (geo).
@@ -30,11 +32,11 @@ NUMERIC = [f for g in GROUPS.values() for f in g]
 
 
 class FeatureBuilder:
-    def __init__(self, seen: pd.DataFrame, intervals: pd.DataFrame, units: pd.DataFrame,
-                 masks: pd.DataFrame, neighbors: pd.DataFrame, cfg: dict):
+    def __init__(self, history: AlertHistory, units: pd.DataFrame, neighbors: pd.DataFrame, cfg: dict):
         self.cfg = cfg
-        u = units.drop_duplicates('unit_id')
-        self.unit_ids = u['unit_id'].tolist()                    # target and input units
+        self.history = history
+        u = units.drop_duplicates('unit_id').set_index('unit_id').loc[history.unit_ids].reset_index()
+        self.unit_ids = history.unit_ids                         # target and input units
         self.col = {uid: j for j, uid in enumerate(self.unit_ids)}
         self.oblasts = sorted(u['oblast'].unique())
         ob_idx = {ob: i for i, ob in enumerate(self.oblasts)}
@@ -50,8 +52,6 @@ class FeatureBuilder:
         self.O[no['a'].map(ob_idx).to_numpy(), no['b'].map(ob_idx).to_numpy()] = 1
         if (self.A.sum(axis=1) == 0).any() or (self.O.sum(axis=1) == 0).any():
             raise ValueError('a unit or an oblast without neighbours')
-
-        self.history = AlertHistory(seen, intervals, self.unit_ids, masks)
 
     def build(self, grid: pd.DataFrame) -> pd.DataFrame:
         """Features per grid row (same index), plus `lookback_ok`. The grid needs columns unit_id and t."""

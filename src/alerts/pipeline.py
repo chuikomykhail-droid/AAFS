@@ -12,6 +12,7 @@ from alerts.config import ROOT
 from alerts.features import FeatureBuilder
 from alerts.geo import neighbours
 from alerts.grid import build_grid
+from alerts.history import AlertHistory
 from alerts.ingest.vadimkin import load_official
 from alerts.intervals import build_intervals, build_seen
 from alerts.mask import build_masks
@@ -65,12 +66,17 @@ def build_tables(df: pd.DataFrame, cfg: dict, units: pd.DataFrame | None = None,
     return Artifacts(df, scope_all, scope, units, neighbors, pairs, masks, outages, mask_stats, intervals, seen, grid, grid_stats)
 
 
+def alert_history(art: Artifacts) -> AlertHistory:
+    """As-of history of every unit (target and input): the only thing features may read (D16)."""
+    return AlertHistory(art.seen, art.intervals, art.units['unit_id'].drop_duplicates().tolist(), art.masks)
+
+
 def model_data(art: Artifacts, cfg: dict) -> pd.DataFrame:
     """Grid rows with their features: the frame every model and baseline is fitted on.
 
     Rows whose last 24 hours overlap a channel outage are dropped (`lookback_ok`, D19).
     """
-    fb = FeatureBuilder(art.seen, art.intervals, art.units, art.masks, art.neighbors, cfg)
+    fb = FeatureBuilder(alert_history(art), art.units, art.neighbors, cfg)
     data = pd.concat([art.grid, fb.build(art.grid)], axis=1)
     logger.info(f'Model data: {int(data["lookback_ok"].sum()):,} of {len(data):,} grid rows have a complete look-back')
     return data[data['lookback_ok']].drop(columns='lookback_ok')

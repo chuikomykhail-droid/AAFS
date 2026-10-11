@@ -4,6 +4,7 @@ from conftest import records, units_table, utc
 from test_leakage import NEIGHBORS
 
 from alerts.features import FeatureBuilder
+from alerts.history import AlertHistory
 from alerts.intervals import build_intervals, build_seen
 from alerts.mask import MASK_COLUMNS, OUTAGE
 from alerts.scope import select_scope
@@ -15,8 +16,9 @@ UNITS = units_table([('A', 'Raion 1', 'U_A'), ('A', 'Raion 2', 'U_A'), ('B', 'Ra
 def features(rows, cfg, at, units, masks=None):
     masks = pd.DataFrame(columns=MASK_COLUMNS) if masks is None else masks
     scope = select_scope(records(rows), cfg)
-    fb = FeatureBuilder(build_seen(scope, UNITS, cfg), build_intervals(scope, UNITS, masks, cfg),
-                        UNITS, masks, NEIGHBORS, cfg)
+    history = AlertHistory(build_seen(scope, UNITS, cfg), build_intervals(scope, UNITS, masks, cfg),
+                           UNITS['unit_id'].drop_duplicates().tolist(), masks)
+    fb = FeatureBuilder(history, UNITS, NEIGHBORS, cfg)
     grid = pd.DataFrame({'unit_id': units, 't': [utc(x) for x in at]})
     return fb.build(grid)
 

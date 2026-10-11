@@ -51,13 +51,16 @@ def main() -> int:
         lc = cfg['leakage_check']
         models = registry(cfg, bt['baselines'] + bt['models'], tuned.get(lc['horizon']))
         results = []
+        checks = {'corrupted_future': lambda c: leakage.check(art.df, cfg, c, lc['horizon'], models),
+                  'known_at_cut': lambda c: leakage.knowledge_check(art.df, cfg, c)}
         for cut in lc['cuts']:
-            try:
-                results.append(leakage.check(art.df, cfg, ts(cut), lc['horizon'], models))
-            except AssertionError as e:
-                logging.error(f'Leakage check failed at {cut}: {e}')
-                results.append({'cut': cut, 'failed': str(e)})
-                failed = True
+            for name, run in checks.items():
+                try:
+                    results.append({'check': name, **run(ts(cut))})
+                except AssertionError as e:
+                    logging.error(f'Leakage check {name} failed at {cut}: {e}')
+                    results.append({'check': name, 'cut': cut, 'failed': str(e)})
+                    failed = True
         (out / 'leakage_check.json').write_text(json.dumps(results, indent=1), encoding='utf-8')
         logging.info(f'Leakage check: {results}')
 

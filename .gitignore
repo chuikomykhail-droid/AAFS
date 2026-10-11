@@ -4,5 +4,10 @@ dataset_repo/
 __pycache__/
 *.pyc
 .pytest_cache/
-scratch/
 data/*.parquet
+
+# secrets: never in version control
+alerts_api/token.txt
+*.token
+.env
+data/raw/
