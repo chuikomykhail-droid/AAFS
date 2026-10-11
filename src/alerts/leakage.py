@@ -8,12 +8,18 @@ the corrupted records, models are fitted on rows with t <= cut - h and predict t
 Must be equal bit for bit: the units table, the training rows with their labels and all features,
 the features and forecasts of the rows at t = cut. The set of rows at t = cut itself may differ
 by rows inside a bridged pause (D12: bridging a pause needs the next start); they are reported.
+
+Corruption cannot see leaks made by the source itself: a record written later than its own
+timestamps (the invented end start + 1 h appears only at the next start, D16). knowledge_check
+covers them: it replays what the dataset contained at the cut (known_at) and requires every feature
+of the last days before the cut to be equal to the features computed from the full data (D21).
 """
 import numpy as np
 import pandas as pd
 
-from alerts.features import NUMERIC
-from alerts.pipeline import build_tables, model_data
+from alerts.features import NUMERIC, FeatureBuilder
+from alerts.pipeline import alert_history, build_tables, model_data
+from alerts.processor import flag_records
 
 LOCATION = ['oblast', 'raion', 'hromada', 'level']
 
@@ -31,6 +37,41 @@ def corrupt_after(df: pd.DataFrame, cut: pd.Timestamp, seed: int = 0) -> pd.Data
     out.loc[open_at_cut, 'finished_at'] = cut + pd.to_timedelta(rng.integers(1, 48 * 3600, open_at_cut.sum()), unit='s')
     out['duration'] = (out['finished_at'] - out['started_at']).dt.total_seconds()
     return out
+
+
+def known_at(df: pd.DataFrame, cut: pd.Timestamp, cfg: dict) -> pd.DataFrame:
+    """The records as the dataset contained them at `cut`.
+
+    A record exists once it has been written: at its all-clear, or for an invented end at the next
+    start of its location. Records started by the cut but not yet written were open alerts; they are
+    kept with the end cut + 1 s, which is "still open at the cut" without adding a far-future event
+    (that would create a fake channel outage after the last real event).
+    """
+    key = [c for c in LOCATION if c in df.columns]
+    rec = df.copy()
+    for c in key:
+        rec[c] = rec[c].astype(object).where(rec[c].notna(), '')     # groupby must not drop NaN keys
+    rec = flag_records(rec, cfg, key)
+    written = rec['next_start'].where(rec['is_fake_end'], rec['finished_at'])
+    out = df.loc[(rec['started_at'] <= cut).to_numpy()].copy()
+    still_open = (written[out.index] > cut).to_numpy()
+    out.loc[still_open, 'finished_at'] = cut + pd.Timedelta(seconds=1)
+    out['duration'] = (out['finished_at'] - out['started_at']).dt.total_seconds()
+    return out.reset_index(drop=True)
+
+
+def knowledge_check(df: pd.DataFrame, cfg: dict, cut: pd.Timestamp, units: pd.DataFrame | None = None,
+                    neighbors: pd.DataFrame | None = None, days: int = 7) -> dict:
+    """Features of the grid rows in (cut - days, cut] from the full data and from known_at(cut) must match."""
+    full = build_tables(df, cfg, units, neighbors)
+    known_df = known_at(df, cut, cfg)
+    known = build_tables(known_df, cfg, full.units, full.neighbors)
+    rows = full.grid[(full.grid['t'] > cut - pd.Timedelta(days=days)) & (full.grid['t'] <= cut)]
+    rows = rows[['unit_id', 't']].reset_index(drop=True)
+    f_full = FeatureBuilder(alert_history(full), full.units, full.neighbors, cfg).build(rows)
+    f_known = FeatureBuilder(alert_history(known), full.units, full.neighbors, cfg).build(rows)
+    pd.testing.assert_frame_equal(f_full, f_known, check_exact=True, obj=f'features known at {cut}')
+    return {'cut': str(cut), 'rows': len(rows), 'open_at_cut': int((known_df['finished_at'] > cut).sum())}
 
 
 def forecasts_at(data: pd.DataFrame, cut: pd.Timestamp, h: int, models: dict) -> tuple[pd.DataFrame, pd.DataFrame]:

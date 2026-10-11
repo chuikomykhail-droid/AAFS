@@ -111,7 +111,7 @@ def _stats(loc_masks: pd.DataFrame, masks: pd.DataFrame, units: pd.DataFrame,
     for name, sel in [(r, target[target['reason'] == r]) for r in [LONG, FAKE_END, OUTAGE]] + [('total', target)]:
         total = union(sel, 'unit_id')
         share[name] = {part: clipped_seconds(total['start'], total['end'], lo, hi)
-                       / (n_target * (hi - lo).total_seconds()) * 100
+                       / (n_target * (hi - lo).total_seconds()) * 100 if hi > lo else float('nan')
                        for part, (lo, hi) in bounds.items()}
     stats['masked_pct'] = share
     return stats

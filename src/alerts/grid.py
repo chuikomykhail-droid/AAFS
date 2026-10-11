@@ -42,7 +42,10 @@ def part_of(t: pd.Series, cfg: dict) -> pd.Series:
     """train / val / test by the moment t (D14)."""
     p = cfg['periods']
     edges = [ts(p['warmup_end']), ts(p['train_end']), ts(p['val_end']), ts(cfg['data_end'])]
-    return pd.Series(pd.cut(t, edges, right=False, labels=PARTS), index=t.index).astype(str)
+    # searchsorted, not pd.cut: a part may be empty (another source has no train or val, stage 8)
+    k = np.searchsorted(to_sec(pd.DatetimeIndex(edges)), to_sec(t), side='right')
+    labels = np.array(['before'] + PARTS + ['after'])
+    return pd.Series(labels[k], index=t.index)
 
 
 def build_grid(seen: pd.DataFrame, intervals: pd.DataFrame, masks: pd.DataFrame, units: pd.DataFrame,

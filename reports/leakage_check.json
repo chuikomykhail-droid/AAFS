@@ -1,5 +1,6 @@
 [
  {
+  "check": "corrupted_future",
   "cut": "2026-08-10 00:00:00+00:00",
   "h": 3,
   "training_rows": 568326,
@@ -8,11 +9,24 @@
   "future_changed": true
  },
  {
+  "check": "known_at_cut",
+  "cut": "2026-08-10 00:00:00+00:00",
+  "rows": 14450,
+  "open_at_cut": 31
+ },
+ {
+  "check": "corrupted_future",
   "cut": "2026-08-21 14:00:00+00:00",
   "h": 3,
   "training_rows": 592629,
   "rows_at_cut": 95,
   "rows_at_cut_only_one_version": 0,
   "future_changed": true
+ },
+ {
+  "check": "known_at_cut",
+  "cut": "2026-08-21 14:00:00+00:00",
+  "rows": 14715,
+  "open_at_cut": 24
  }
 ]

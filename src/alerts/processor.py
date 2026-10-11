@@ -33,6 +33,8 @@ def flag_records(records: pd.DataFrame, cfg: dict, key: list[str]) -> pd.DataFra
     fake_gap = pd.Timedelta(hours=cfg['processor']['fake_end_next_start_h'])
     rec['is_long'] = rec['duration'] > cfg['thresholds']['long_alert_hours'] * 3600
     invented_length = rec['duration'] == fake_s
+    if not cfg['processor']['enabled']:         # another source has no such artifact (stage 8, D22)
+        invented_length = pd.Series(False, index=rec.index)
     rec['is_fake_end'] = invented_length & ((rec['next_start'] - rec['started_at']) > fake_gap)
 
     later_start = rec['next_start'].where(rec['next_start'] > rec['finished_at'])

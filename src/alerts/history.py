@@ -68,6 +68,17 @@ class AlertHistory:
             return np.where(k >= 0, t - e[np.maximum(k, 0)], np.nan)
         return self._per_unit(f, dtype=float)
 
+    def seconds_since_start(self, T) -> np.ndarray:
+        """t minus the latest episode start <= t; NaN if there is none yet."""
+        t = to_sec(T)
+        out = np.full((len(t), len(self.unit_ids)), np.nan)
+        for j, u in enumerate(self.unit_ids):
+            st = self._ep_start[u]
+            k = np.searchsorted(st, t, side='right') - 1
+            if len(st):
+                out[:, j] = np.where(k >= 0, t - st[np.maximum(k, 0)], np.nan)
+        return out
+
     # --- counts and shares over a look-back window (t - w, t] --------------------------------
     def starts(self, T, window: pd.Timedelta) -> np.ndarray:
         """Number of episode starts in (t - window, t]. Episode starts are fixed once they happen."""

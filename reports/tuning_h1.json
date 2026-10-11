@@ -1,0 +1,12 @@
+{
+ "LR": {
+  "C": 1.0,
+  "half_life_days": 28
+ },
+ "LGBM": {
+  "num_leaves": 15,
+  "min_child_samples": 200,
+  "half_life_days": 28,
+  "n_estimators": 108
+ }
+}
