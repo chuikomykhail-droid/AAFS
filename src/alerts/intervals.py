@@ -8,9 +8,10 @@ One table, two levels:
            "under alert" state inside a bridged pause come from the future (D16): never read
            them as of t; use alerts.history.AlertHistory instead.
 
-`end_utc` is the recorded end. `open_until` is until when the segment looked open to a real-time
-observer: an invented end start + 1 h is written only at the next start (alerts.processor), so
-AlertHistory reads the state from open_until, never from end_utc.
+`end_utc` is the recorded end. What a real-time observer saw is a separate table, `seen`
+(build_seen): an invented end start + 1 h is written only at the next start (alerts.processor),
+and an alert open longer than history.max_open_hours stops counting as active (D16, D19).
+AlertHistory reads the state from `seen`, never from end_utc.
 """
 import logging
 
@@ -24,7 +25,8 @@ from alerts.timeutil import to_sec
 
 logger = logging.getLogger(__name__)
 
-INTERVAL_COLUMNS = ['unit_id', 'start_utc', 'end_utc', 'open_until', 'uncertain', 'episode', 'n_records']
+INTERVAL_COLUMNS = ['unit_id', 'start_utc', 'end_utc', 'uncertain', 'episode', 'n_records']
+SEEN_COLUMNS = ['unit_id', 'start', 'end']
 
 
 def build_intervals(scope: pd.DataFrame, units: pd.DataFrame, masks: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -33,15 +35,15 @@ def build_intervals(scope: pd.DataFrame, units: pd.DataFrame, masks: pd.DataFram
     `uncertain`: the segment overlaps a mask of rules (a), (b) or (d), so its end is unreliable.
     The flag is retrospective (it depends on the future) and must not become a feature.
     """
-    rec = attach_units(scope, units)[['unit_id', 'started_at', 'finished_at', 'open_until']]
+    rec = attach_units(scope, units)[['unit_id', 'started_at', 'finished_at']]
     rec = rec.sort_values(['unit_id', 'started_at', 'finished_at']).reset_index(drop=True)
     rec['uncertain'] = _overlaps_masks(rec, masks)
 
     seg_id = merge_labels(rec, 'unit_id', 'started_at', 'finished_at')
     seg = (rec.groupby(seg_id)
               .agg(unit_id=('unit_id', 'first'), start_utc=('started_at', 'min'),
-                   end_utc=('finished_at', 'max'), open_until=('open_until', 'max'),
-                   uncertain=('uncertain', 'any'), n_records=('unit_id', 'size'))
+                   end_utc=('finished_at', 'max'), uncertain=('uncertain', 'any'),
+                   n_records=('unit_id', 'size'))
               .reset_index(drop=True))
 
     pause = pd.Timedelta(minutes=cfg['thresholds']['pause_merge_min'])
@@ -49,6 +51,23 @@ def build_intervals(scope: pd.DataFrame, units: pd.DataFrame, masks: pd.DataFram
 
     logger.info(f'{len(rec):,} records -> {len(seg):,} segments -> {seg["episode"].nunique():,} episodes')
     return seg[INTERVAL_COLUMNS]
+
+
+def build_seen(scope: pd.DataFrame, units: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Intervals during which a real-time observer saw each unit under alert (D16, D19).
+
+    Per source record: from its start until `open_until` (an invented end keeps the alert open
+    until the next start), but at most history.max_open_hours: an alert without an all-clear for
+    that long stops counting as active (PLAN default for alerts with an unknown end). Both rules
+    depend only on the start and on whether an all-clear had been seen, so they are causal.
+    The cap is applied per record, before the union: a unit made of several raions (Donetsk) can
+    legitimately stay under alert for days through overlapping records.
+    """
+    rec = attach_units(scope, units)
+    cap = rec['started_at'] + pd.Timedelta(hours=cfg['history']['max_open_hours'])
+    end = rec['open_until'].where(rec['open_until'] <= cap, cap)
+    return union(pd.DataFrame({'unit_id': rec['unit_id'], 'start': rec['started_at'], 'end': end}),
+                 'unit_id')[SEEN_COLUMNS]
 
 
 def episodes(intervals: pd.DataFrame) -> pd.DataFrame:

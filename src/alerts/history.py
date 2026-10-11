@@ -4,10 +4,11 @@ Information set at moment t: everything a real-time observer of the channel had 
 An alert that started at or before t and had not been seen to end by t is active; its end is
 never returned. The target uses (t, t+h], so the two never share an event.
 
-The state is read from [start_utc, open_until), not from the recorded end:
+The state is read from the `seen` table (intervals.build_seen), not from the recorded end:
   * an invented end start + 1 h (alerts.processor) is written only at the next start, so until
     then the alert stays open, as the observer saw it (no all-clear arrived);
-  * segments are not bridged across pauses (D12), so a unit in a short pause is quiet.
+  * an alert without an all-clear for more than history.max_open_hours stops counting (D19);
+  * nothing is bridged across pauses (D12), so a unit in a short pause is quiet.
 
 What is deliberately not exposed, because it depends on the future:
   * episode ends;
@@ -26,11 +27,10 @@ from alerts.timeutil import to_sec
 
 
 class AlertHistory:
-    def __init__(self, intervals: pd.DataFrame, unit_ids, masks: pd.DataFrame | None = None):
+    def __init__(self, seen: pd.DataFrame, intervals: pd.DataFrame, unit_ids, masks: pd.DataFrame | None = None):
+        """seen: intervals.build_seen() (state); intervals: segments with episode ids (episode starts)."""
         self.unit_ids = list(unit_ids)
-        # Held-open segments can overlap later ones: rebuild disjoint "seen as open" intervals
-        seen = union(intervals.rename(columns={'start_utc': 'start', 'open_until': 'end'})
-                     [['unit_id', 'start', 'end']], 'unit_id')
+        seen = union(seen, 'unit_id')
         self._seg = {}
         self._ep_start = {}
         for u in self.unit_ids:
@@ -82,6 +82,12 @@ class AlertHistory:
         """Seconds under alert in (t - window, t], counting only what has happened by t."""
         t, w = to_sec(T), int(window // pd.Timedelta(seconds=1))
         return self._per_unit(lambda s, e, b: _covered(s, e, b, t) - _covered(s, e, b, t - w), dtype=float)
+
+    def outage_between(self, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+        """Seconds of channel outage in (lo, hi] for arrays of int64 seconds (hi is at most the moment t)."""
+        s, e = self._outage
+        before = np.concatenate([[0], np.cumsum(e - s)[:-1]]) if len(s) else np.zeros(0, np.int64)
+        return (_covered(s, e, before, hi) - _covered(s, e, before, lo)).astype(float)
 
     def outage_seconds(self, T, window: pd.Timedelta) -> np.ndarray:
         """Seconds of channel outage in (t - window, t]; the same for every unit, shape (len(T),)."""

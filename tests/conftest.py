@@ -13,8 +13,18 @@ _BASE_CFG = {
     'thresholds': {'pause_merge_min': 15, 'long_alert_hours': 24, 'clone_jaccard': 0.997,
                    'similar_pairs_report': 0.95, 'outage_gap_hours': 1_000_000},
     'processor': {'fake_end_duration_s': 3600, 'fake_end_next_start_h': 3},
+    'history': {'max_open_hours': 24},
+    'geo': {'path': '', 'sha256': '', 'vertex_decimals': 5, 'min_shared_vertices': 2, 'renames': {}},
+    'backtest': {'horizons': [3], 'baselines': ['B0', 'B1', 'B2'], 'models': ['LR', 'LGBM']},
+    'models': {'threads': 2, 'seed': 1,
+               'lr': {'grid': {'C': [1.0], 'half_life_days': [None, 28]}},
+               'lgbm': {'learning_rate': 0.1, 'max_estimators': 60, 'early_stopping_rounds': 10,
+                        'grid': {'num_leaves': [7], 'min_child_samples': [20], 'half_life_days': [None, 28]}}},
+    'baselines': {'b1_window_days': 28, 'prior_strength': 5},
+    'bootstrap': {'n_reps': 50, 'n_reps_oblast': 20, 'ci': 0.95, 'seed': 1},
+    'leakage_check': {'cuts': [], 'horizon': 3},
     'horizons': [1, 3, 6],
-    'paths': {'units': '', 'mask': '', 'intervals': '', 'similar_pairs': '', 'reports': ''},
+    'paths': {'units': '', 'mask': '', 'intervals': '', 'seen': '', 'neighbors': '', 'grid': '', 'predictions': '', 'similar_pairs': '', 'reports': ''},
 }
 
 

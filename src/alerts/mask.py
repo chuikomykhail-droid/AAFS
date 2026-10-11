@@ -71,7 +71,7 @@ def build_masks(df: pd.DataFrame, scope_all: pd.DataFrame, units: pd.DataFrame, 
     loc_masks = in_period(loc_masks)
 
     outages = detect_outages(df, cfg)
-    file_end = df['finished_at'].max()
+    file_end = max(df['finished_at'].max(), data_end)  # never a negative interval
     all_units = units['unit_id'].drop_duplicates()
     global_masks = [pd.DataFrame({'unit_id': all_units, 'start': data_end, 'end': file_end, 'reason': AFTER_END})]
     global_masks += [pd.DataFrame({'unit_id': all_units, 'start': o.start, 'end': o.end, 'reason': OUTAGE})
