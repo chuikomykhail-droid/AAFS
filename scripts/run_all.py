@@ -15,11 +15,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
-from alerts import leakage, report  # noqa: E402
+from alerts import figures, leakage, report  # noqa: E402
 from alerts.config import load_config, path, ts  # noqa: E402
-from alerts.evaluation import evaluate, write_report  # noqa: E402
+from alerts.evaluation import evaluate, write_report, write_summary  # noqa: E402
 from alerts.models import registry  # noqa: E402
 from alerts.pipeline import build_all, model_data, save_all  # noqa: E402
+from alerts.spans import union  # noqa: E402
 from alerts.tuning import tune  # noqa: E402
 from fetch_data import ensure_snapshot  # noqa: E402
 
@@ -40,7 +41,7 @@ def main() -> int:
         out = path(cfg, 'reports')
         bt = cfg['backtest']
         data = model_data(art, cfg)
-        tuned = {}
+        tuned, summaries = {}, []
         for h in bt['horizons']:
             tuned[h], table = tune(data, h, cfg)
             (out / f'tuning_h{h}.json').write_text(json.dumps(tuned[h], indent=1), encoding='utf-8')
@@ -48,6 +49,13 @@ def main() -> int:
             res = evaluate(data, h, models, bt['baselines'], cfg)
             write_report(res, cfg, out, _tuning_md(table))
             res['preds'].to_parquet(str(path(cfg, 'predictions')).format(h=h))
+            summaries.append({k: v for k, v in res.items() if k != 'preds'})
+            if h == cfg['leakage_check']['horizon']:
+                rp = cfg['report']
+                outage = union(art.masks[art.masks['reason'] == 'outage'].assign(k=0), 'k')
+                figures.forecast_vs_fact(res['preds'], art.intervals, outage, art.units, rp['forecast_units'],
+                                         rp['forecast_days'], h, out / 'figures' / 'forecast_vs_fact.png')
+        write_summary(summaries, cfg, out)
         lc = cfg['leakage_check']
         models = registry(cfg, bt['baselines'] + bt['models'], tuned.get(lc['horizon']))
         results = []

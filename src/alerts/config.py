@@ -7,12 +7,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 _REQUIRED = {
-    'dataset': ['repo_url', 'commit', 'repo_dir', 'path', 'sha256'],
+    'dataset': ['repo_url', 'commit', 'repo_dir', 'path', 'sha256', 'path_uk', 'sha256_uk'],
+    'volunteer': ['commit', 'path', 'sha256'],
     'periods': ['work_start', 'warmup_end', 'train_end', 'val_end'],
     'scope': ['excluded_oblasts', 'input_only_oblasts', 'oblast_level_units'],
     'thresholds': ['pause_merge_min', 'long_alert_hours', 'clone_jaccard',
                    'similar_pairs_report', 'outage_gap_hours'],
-    'processor': ['fake_end_duration_s', 'fake_end_next_start_h'],
+    'processor': ['enabled', 'fake_end_duration_s', 'fake_end_next_start_h'],
     'history': ['max_open_hours'],
     'geo': ['path', 'sha256', 'vertex_decimals', 'min_shared_vertices', 'renames'],
     'backtest': ['horizons', 'baselines', 'models'],
@@ -20,6 +21,9 @@ _REQUIRED = {
     'baselines': ['b1_window_days', 'prior_strength'],
     'bootstrap': ['n_reps', 'n_reps_oblast', 'ci', 'seed'],
     'leakage_check': ['cuts', 'horizon'],
+    'report': ['forecast_units', 'forecast_days'],
+    'api': ['base_url', 'history_path', 'token_env', 'token_file', 'pause_seconds', 'retry_after_429_seconds',
+            'raw_dir', 'oblast_uids'],
     'paths': ['units', 'mask', 'intervals', 'seen', 'neighbors', 'grid', 'predictions', 'similar_pairs', 'reports'],
 }
 

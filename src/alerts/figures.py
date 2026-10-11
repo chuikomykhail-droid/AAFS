@@ -195,3 +195,63 @@ def calibration(res: dict, file) -> None:
     title(fig, f'Calibration on the test part, h = {res["h"]}',
            'Ten quantile bins of the prediction; the dashed line is perfect calibration')
     save(fig, file)
+
+
+def forecast_vs_fact(preds: pd.DataFrame, intervals: pd.DataFrame, outages: pd.DataFrame,
+                     units: pd.DataFrame, raions: list, days: int, h: int, file) -> None:
+    """Hourly forecasts of LightGBM and B1 for a few units over the first `days` of the test part.
+
+    The units come from config (report.forecast_units): large cities with quiet stretches, chosen
+    without looking at the forecasts. Gaps in the lines are moments without a row (unit under
+    alert, masked, or look-back incomplete).
+    """
+    test = preds[preds['part'] == 'test']
+    test = test[test['t'] < test['t'].min() + pd.Timedelta(days=days)]
+    pick = units[units['raion'].isin(raions)].drop_duplicates('unit_id')
+    pick = pick.set_index('raion').loc[[r for r in raions if r in set(pick['raion'])]].reset_index()
+    ep = episodes(intervals)
+    lo, hi = test['t'].min().tz_localize(None), (test['t'].max() + pd.Timedelta(hours=1)).tz_localize(None)
+
+    fig, axes = plt.subplots(len(pick), 1, figsize=(11, 2.4 * len(pick) + 1.2), sharex=True, squeeze=False)
+    fig.subplots_adjust(top=1 - 1.0 / (2.4 * len(pick) + 1.2), left=0.07, right=0.9, bottom=0.07, hspace=0.35)
+    for ax, (_, u) in zip(axes[:, 0], pick.iterrows()):
+        e = ep[(ep['unit_id'] == u['unit_id']) & (ep['end_utc'] > test['t'].min()) & (ep['start_utc'] < test['t'].max())]
+        for s, f in zip(e['start_utc'], e['end_utc']):
+            ax.axvspan(s.tz_localize(None), f.tz_localize(None), color=BAND, linewidth=0, zorder=0)
+        for o in outages.itertuples():
+            ax.axvspan(o.start.tz_localize(None), o.end.tz_localize(None), color=GRID, alpha=0.6, linewidth=0, zorder=0)
+        g = test[test['unit_id'] == u['unit_id']].set_index('t').sort_index()
+        full = pd.date_range(g.index.min(), g.index.max(), freq='h')
+        g = g.reindex(full)                                            # NaN breaks the line where there is no row
+        x = g.index.tz_localize(None)
+        ax.plot(x, g['p_B1'], color=SERIES[1], linewidth=1.2, label='B1 (unit x hour)')
+        ax.plot(x, g['p_LGBM'], color=SERIES[0], linewidth=1.6, label='LightGBM')
+        ax.set_ylim(0, 1)
+        ax.set_xlim(lo, hi)
+        ax.set_title(u['raion'] if u['raion'] != u['oblast'] else u['oblast'], color=INK, fontsize=10, loc='left')
+        ax.set_ylabel(f'P(alert in {h} h)', color=INK_2, fontsize=8.5)
+        style(ax)
+    axes[0, 0].legend(frameon=False, fontsize=8.5, loc='upper right', labelcolor=INK, ncol=2)
+    title(fig, f'Hourly forecasts and real alerts, first {days} days of the test part',
+          f'Probability that an alert starts within {h} h; grey bands: real alerts; '
+          'gaps: no forecast (unit under alert)')
+    save(fig, file)
+
+
+def source_comparison(both: pd.DataFrame, file) -> None:
+    """Per target unit: the last 4 weeks of Vadimkin against the API period (stage 8, D22)."""
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.6))
+    fig.subplots_adjust(top=0.8, left=0.08, right=0.97, bottom=0.13, wspace=0.25)
+    for ax, (c, label) in zip(axes, [('alerts_per_day', 'alerts per day'), ('share_under_alert', 'share of time under alert')]):
+        x, y = both[c], both[f'{c}_api']
+        top = float(max(x.max(), y.max())) * 1.05
+        ax.plot([0, top], [0, top], color=INK_2, linewidth=1, linestyle='--')
+        ax.scatter(x, y, s=24, color=SERIES[0], edgecolors=SURFACE, linewidths=0.8, zorder=3)
+        ax.set_xlim(0, top)
+        ax.set_ylim(0, top)
+        ax.set_xlabel(f'Vadimkin, last 4 weeks: {label}', color=INK_2, fontsize=9)
+        ax.set_ylabel(f'alerts.in.ua: {label}', color=INK_2, fontsize=9)
+        style(ax, grid_axis='both')
+    title(fig, 'The new source keeps the order of units but records more alerts in most of them',
+          'One dot per target unit; dashed line: equal values; the periods do not overlap (D22)')
+    save(fig, file)

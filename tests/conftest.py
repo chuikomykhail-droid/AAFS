@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 
 _BASE_CFG = {
-    'dataset': {'repo_url': '', 'commit': '', 'repo_dir': '', 'path': '', 'sha256': ''},
+    'dataset': {'repo_url': '', 'commit': '', 'repo_dir': '', 'path': '', 'sha256': '', 'path_uk': '', 'sha256_uk': ''},
+    'volunteer': {'commit': '', 'path': '', 'sha256': ''},
     'data_end': '2026-03-01T00:00:00Z',
     'periods': {'work_start': '2026-01-01T00:00:00Z', 'warmup_end': '2026-01-02T00:00:00Z',
                 'train_end': '2026-02-01T00:00:00Z', 'val_end': '2026-02-15T00:00:00Z'},
@@ -12,7 +13,7 @@ _BASE_CFG = {
     # Synthetic data is sparse: the outage rule is switched off unless a test turns it on.
     'thresholds': {'pause_merge_min': 15, 'long_alert_hours': 24, 'clone_jaccard': 0.997,
                    'similar_pairs_report': 0.95, 'outage_gap_hours': 1_000_000},
-    'processor': {'fake_end_duration_s': 3600, 'fake_end_next_start_h': 3},
+    'processor': {'enabled': True, 'fake_end_duration_s': 3600, 'fake_end_next_start_h': 3},
     'history': {'max_open_hours': 24},
     'geo': {'path': '', 'sha256': '', 'vertex_decimals': 5, 'min_shared_vertices': 2, 'renames': {}},
     'backtest': {'horizons': [3], 'baselines': ['B0', 'B1', 'B2'], 'models': ['LR', 'LGBM']},
@@ -23,6 +24,9 @@ _BASE_CFG = {
     'baselines': {'b1_window_days': 28, 'prior_strength': 5},
     'bootstrap': {'n_reps': 50, 'n_reps_oblast': 20, 'ci': 0.95, 'seed': 1},
     'leakage_check': {'cuts': [], 'horizon': 3},
+    'report': {'forecast_units': [], 'forecast_days': 7},
+    'api': {'base_url': '', 'history_path': '', 'token_env': '', 'token_file': '', 'pause_seconds': 0,
+            'retry_after_429_seconds': 0, 'raw_dir': '', 'oblast_uids': []},
     'horizons': [1, 3, 6],
     'paths': {'units': '', 'mask': '', 'intervals': '', 'seen': '', 'neighbors': '', 'grid': '', 'predictions': '', 'similar_pairs': '', 'reports': ''},
 }

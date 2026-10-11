@@ -110,3 +110,35 @@ def write_report(res: dict, cfg: dict, out_dir, extra_md: str = '') -> None:
     lines += ['', f'Calibration on the test part: `figures/calibration_h{h}.png`.', '', extra_md]
     (out_dir / f'backtest_h{h}.md').write_text('\n'.join(lines).rstrip() + '\n', encoding='utf-8')
     figures.calibration(res, out_dir / 'figures' / f'calibration_h{h}.png')
+
+
+def write_summary(results: list[dict], cfg: dict, out_dir) -> None:
+    """reports/results.md: model x horizon on the test part, with bootstrap intervals (PLAN stage 7)."""
+    names = results[0]['models']
+    lines = ['# Results: model x horizon (test part)', '',
+             'Walk-forward with daily retraining on the test part (2026-08-10 to 2026-09-07, D14). Intervals: '
+             f"{int(cfg['bootstrap']['ci'] * 100)}% percentile, {cfg['bootstrap']['n_reps']} bootstrap draws of whole "
+             'days; differences are paired (same draws). Hyperparameters chosen on validation for each horizon (D20). '
+             'Details per horizon: `backtest_h<h>.md`.', '',
+             '## Metrics', '', '| h | Rows | Base rate | Model | PR-AUC | ROC-AUC | Brier | Log loss |',
+             '|---|---|---|---|---|---|---|---|']
+    for res in results:
+        t = res['tables']['test']
+        for m in names:
+            r = t[t['model'] == m].set_index('metric')
+            cell = lambda k: f"{r.at[k, 'value']:.3f} [{r.at[k, 'lo']:.3f}, {r.at[k, 'hi']:.3f}]"  # noqa: E731
+            lines.append(f"| {res['h']} | {t.attrs['n_rows']:,} | {t.attrs['n_pos'] / t.attrs['n_rows']:.3f} | {m} | "
+                         f"{cell('pr_auc')} | {cell('roc_auc')} | {cell('brier')} | {cell('log_loss')} |")
+    lines += ['', '## Difference from the best baseline (chosen on validation)', '',
+              '| h | Reference | Model | PR-AUC | Log loss | Brier |', '|---|---|---|---|---|---|']
+    for res in results:
+        t = res['tables']['test']
+        for m in names:
+            if m in cfg['backtest']['baselines']:
+                continue
+            r = t[t['model'] == m].set_index('metric')
+            cell = lambda k: f"{r.at[k, 'diff']:+.3f} [{r.at[k, 'diff_lo']:+.3f}, {r.at[k, 'diff_hi']:+.3f}]"  # noqa: E731
+            lines.append(f"| {res['h']} | {res['reference']} | {m} | {cell('pr_auc')} | {cell('log_loss')} | "
+                         f"{cell('brier')} |")
+    lines += ['', 'Figures: `figures/calibration_h<h>.png`, `figures/forecast_vs_fact.png`.']
+    (out_dir / 'results.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
