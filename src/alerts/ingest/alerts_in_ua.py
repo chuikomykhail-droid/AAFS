@@ -35,13 +35,26 @@ def _utc(s: pd.Series) -> pd.Series:
     return pd.to_datetime(s, utc=True, format='ISO8601').dt.floor('s').dt.as_unit('s')
 
 
+def _requested(f: Path) -> pd.Timestamp:
+    """Request time from a response file name <uid>_<request time UTC>.json."""
+    return pd.to_datetime(f.stem.split('_', 1)[1], format='%Y%m%dT%H%M%SZ', utc=True).as_unit('s')
+
+
+def downloads(raw_dir) -> pd.DataFrame:
+    """Every saved response: columns uid, requested_utc. What was downloaded, unlike read_raw, which
+    keeps only the file of the latest version of each alert."""
+    files = sorted(Path(raw_dir).glob('*_*.json'))
+    return pd.DataFrame({'uid': [f.stem.split('_', 1)[0] for f in files],
+                         'requested_utc': pd.DatetimeIndex([_requested(f) for f in files], tz='UTC').as_unit('s')})
+
+
 def read_raw(raw_dir) -> pd.DataFrame:
     """All downloaded alerts, one row per id (latest updated_at), with the request time of its file."""
     frames = []
     for f in sorted(Path(raw_dir).glob('*_*.json')):
         body = json.loads(f.read_text(encoding='utf-8'))
         a = pd.DataFrame(body['alerts'])
-        a['requested_utc'] = pd.to_datetime(f.stem.split('_', 1)[1], format='%Y%m%dT%H%M%SZ', utc=True).as_unit('s')
+        a['requested_utc'] = _requested(f)
         a['file'] = f.name
         frames.append(a)
     if not frames:
