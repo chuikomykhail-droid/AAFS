@@ -182,8 +182,9 @@ def levels_figure(base: MapBase, units: pd.DataFrame, moments: dict, state: dict
                 color=MUTED, va='center', ha='left')
     ax.text(1.09, len(c) - 0.2, 'hours under\nalert, Y / R', transform=ax.get_yaxis_transform(), fontsize=8,
             color=INK_2, va='bottom', ha='left')
-    fig.text(0.70, 0.012, 'Time-weighted over the minutes with an alert of that level. Kyiv City is one unit; '
-             'Zakarpattia had no yellow alert.', fontsize=8, color=INK_2, ha='left', va='bottom', wrap=True)
+    fig.text(0.70, 0.012, 'Time-weighted over the minutes with an alert of that level. Kyiv City is one unit, and so '
+             'are the five raions of Zaporizhzhia (identical series), hence 100%. Zakarpattia had no yellow alert.',
+             fontsize=8, color=INK_2, ha='left', va='bottom', wrap=True)
     fig.savefig(file, dpi=150, facecolor=SURFACE)
     plt.close(fig)
 
@@ -196,14 +197,15 @@ def synchrony_figure(base: MapBase, units: pd.DataFrame, panels: list, file) -> 
     fig.text(0.008, 0.985, 'How often the raions of one oblast are under alert together', ha='left', va='top',
              fontsize=14, color=INK, weight='bold')
     fig.text(0.008, 0.925, 'Each raion: minute-level Jaccard with the other raions of its oblast, averaged '
-             '(1 = always together). Before the alert levels the west was announced as a whole and the east and south '
-             'raion by raion (D07);\nafter them the west splits too, because yellow alerts are announced per raion (D23). '
-             'Zaporizhzhia stays dark: its five raions are one unit of identical series.',
+             '(1 = always together). Before the alert levels the west was\nannounced as a whole and the east and '
+             'south raion by raion (D07). After them the west splits too: yellow alerts are less synchronous\nthan '
+             'red ones (median 0.29 against 0.68), but the change is mixed with the change of source (D23). '
+             'Zaporizhzhia stays dark: its five raions are one unit.',
              ha='left', va='top', fontsize=9.5, color=INK_2, linespacing=1.45)
     inside = np.array([u is not None for u in feature_units(base, units)])
     w = 1 / len(panels)
     for k, (ttl, val) in enumerate(panels):
-        ax = fig.add_axes([k * w + 0.005, 0.1, w - 0.01, 0.69])
+        ax = fig.add_axes([k * w + 0.005, 0.1, w - 0.01, 0.66])
         v = np.array([val.get(n, np.nan) for n in base.names])
         colors = [RAMP(x) if np.isfinite(x) else QUIET for x in v]
         draw(ax, base, colors, hatch_mask=~inside)

@@ -6,6 +6,9 @@ of the newest raion-level data, retrained daily, and checked for leakage from th
 
 ## Key features
 
+- **Result.** LightGBM beats the best baseline at every horizon: PR-AUC +0.036 / +0.027 / +0.018 at
+  h = 1 / 3 / 6 on the last four weeks of data. The gain is modest, and only at h = 1 does it survive every
+  robustness check of the independent reviews; [Results](#results) says where it is fragile.
 - **Raion-level forecast.** The map is split into 104 forecast units: 110 raions in 22 oblasts plus Kyiv,
   with raions whose series are practically identical merged (D05, D07). An oblast is too coarse: while
   any raion of an oblast is under alert, on average only about half of its area is ([maps](#why-the-unit-is-a-raion)).
@@ -13,9 +16,9 @@ of the newest raion-level data, retrained daily, and checked for leakage from th
   when the Telegram channel behind it went silent, although the dataset's README says it is updated
   daily (D02). The test is the last four weeks before that, and the frozen model was checked again one
   month later on the alerts.in.ua API, downloaded on 12 October 2026 (D22).
-- **Two-level alert system (yellow / red).** The levels introduced in September 2026 (Cabinet of
-  Ministers resolution No. 1092) are measured in the data: all 16,710 records of the API month carry the
-  level. What they change for the forecast is in [Check on fresh data](#check-on-fresh-data-alertsinua-one-month-later) and D23.
+- **Checked after the alert-level reform.** The check one month later falls into the new yellow / red
+  regime (Cabinet of Ministers resolution No. 1092, September 2026). What is left there of the frozen
+  model's edge comes from red alerts; on yellow ones it is level with the baseline ([Check on fresh data](#check-on-fresh-data-alertsinua-one-month-later), D23).
 - **Leakage control.** Features see only what an observer had seen by moment `t`, including records that
   the source wrote retroactively; two automated leakage checks run on the real data in every pipeline
   run (D16, D18, D21).
@@ -46,7 +49,8 @@ honest measure is the backtest below.
 
 **LightGBM beats the best baseline at every horizon:** PR-AUC +0.036 at h = 1, +0.027 at h = 3 and
 +0.018 at h = 6 over B1, the rate of alerts per "unit × hour of day" over the last four weeks, with the
-95% intervals above zero.
+95% intervals of the day bootstrap above zero. The gain is modest, and only at h = 1 does it survive
+every robustness check of the reviews (below).
 
 Test: 2026-08-10 – 2026-09-07, retrained daily; square brackets give the 95% interval of a bootstrap
 over days, differences are paired (the full table of all models is in [`reports/results.md`](reports/results.md)):
@@ -57,16 +61,24 @@ over days, differences are paired (the full table of all models is in [`reports/
 | 3 | 0.255 | 0.674 | 0.701 | **+0.027** [+0.010, +0.041] | −0.021 [−0.033, −0.009] |
 | 6 | 0.360 | 0.814 | 0.832 | **+0.018** [+0.005, +0.030] | −0.019 [−0.033, −0.006] |
 
-The difference is statistically significant but modest. Most of the gain is within oblasts: B1 rests
-almost entirely on the "east versus west" difference, while the model tells moments and neighbouring
-raions apart. For example, on the test at h = 3 the PR-AUC in Kyiv is 0.63 for LR versus 0.34 for B1,
-and in Kyiv oblast 0.55 versus 0.34 (`reports/backtest_h3.md`). Logistic regression lies between B1 and
-LightGBM. B0 (the overall rate) and B2 (the number of oblasts under alert) are barely better than a
-random forecast: in summer at least a few frontline oblasts are always under alert, and that number
-stops measuring a "wave" (D18). The calibration of LR and LightGBM is close to the diagonal
-(`reports/figures/calibration_h*.png`).
+**Where the gain is fragile** (found in the review, [`reviews/FINAL.md`](reviews/FINAL.md), F23–F25):
+- at h = 3 most of the gain comes from the days around the channel outage; on the ordinary days of the
+  test (10–26 August) it is +0.010 [−0.002, +0.020];
+- at h = 6 the interval reaches zero with 7-day bootstrap blocks ([−0.003, +0.024]);
+- on validation, a B1 that weights recent days exponentially (half-life 7 days, fixed by the review in
+  advance) is level with LightGBM at h = 3 and 6. It was not run on the test: choosing a baseline after
+  seeing the test would break rule 6. So part of the edge may be memory of recent alerts rather than
+  structure;
+- logistic regression beats B1 significantly only at h = 1.
 
-![Forecast versus fact](reports/figures/forecast_vs_fact.png)
+Where the model clearly helps is Kyiv and Kyiv oblast: at h = 3 the PR-AUC of LightGBM is 0.59 and 0.51
+there, against 0.34 for B1 in both (`reports/backtest_h3.md`). Within one unit its ROC-AUC
+over time is about 0.60: it tells calm hours from dangerous ones only moderately. B0 (the overall rate)
+and B2 (the number of oblasts under alert) are barely better than a random forecast: in summer at least
+a few frontline oblasts are always under alert, and that number stops measuring a "wave" (D18). The
+calibration of LightGBM is close to the diagonal at every horizon, of LR only at h = 1
+(`reports/figures/calibration_h*.png`). Forecast against fact for three units over the first test week:
+[`forecast_vs_fact.png`](reports/figures/forecast_vs_fact.png).
 
 ## Why the unit is a raion
 
@@ -81,9 +93,10 @@ call the whole oblast for an alert that half of it never gets.
 How synchronous the raions of an oblast are depends on the region and has changed with the alert levels.
 Before them, the west was announced almost as a whole (Ternopil 0.99, Ivano-Frankivsk 0.94, Lviv 0.88:
 the median Jaccard of raion pairs over the training period), while the east and the south went raion by
-raion (Dnipropetrovsk 0.39, Kherson 0.42, Chernihiv 0.47; D07). After the levels the west splits too,
-because yellow alerts are announced per raion. Zakarpattia is the exception before the levels (0.36):
-it has very few alerts.
+raion (Dnipropetrovsk 0.39, Kherson 0.42, Chernihiv 0.47; D07). After the levels the west splits too:
+yellow alerts are less synchronous across raions than red ones (median Jaccard 0.29 against 0.68), though
+the comparison mixes the new regime with the new source (D23). Zakarpattia is the exception before the
+levels (0.36): it has very few alerts.
 
 ![How often the raions of one oblast are under alert together](reports/figures/raion_synchrony.png)
 
@@ -143,7 +156,13 @@ API responses are not in the repository: the terms of their publication are not 
   - *knowledge at the cut* (D21): what the dataset held at the cut is reconstructed, including records
     written later than their timestamps; the features must match those computed on the full data.
 
-  Both also run in the tests on synthetic data, and each fails when a leaking variant is swapped in.
+  Both also run in the tests on synthetic data; that each fails on a leaking variant was checked by
+  swapping one in by hand. Limits found by the reviews (`reviews/FINAL.md`, F08, F33–F35): the cuts on
+  the real data contain no retroactive end, so that class of leak (D16) is covered by the synthetic test
+  only; *corrupting the future* rebuilds the rows with its own copy of the walk-forward rule, so the row
+  selection of the backtest itself was checked by reading the code; and the knowledge check models six
+  real one-hour alerts differently from the observer table, so at seven hourly cuts outside the
+  configured ones it fails without a leak.
 - **Features cannot reach the raw tables:** they read the history only through `AlertHistory` (D21), so a
   new feature is checked automatically.
 - **Decisions about the data are fixed before the metrics:** thresholds, merged raions and masks come
@@ -164,6 +183,14 @@ the results:
   could not see and that a question from the author exposed (D16, D21);
 - the gain of the frozen model one month later would have been reported as +0.096 PR-AUC instead of
   +0.017, because the baseline had gone stale (D22).
+
+After the stages were built, the project went through two independent review sets, Claude agents and
+Gemini agents, with the same prompts: seven reviews each, covering stages 0–8
+([`reviews/prompts/`](reviews/prompts/)). A final synthesis ([`reviews/FINAL.md`](reviews/FINAL.md), in
+Russian) merged them into one plan and settled every disagreement on the data. Both sets found the same
+main problems, but the weaker one was confidently wrong in numbers (an estimate of lost alerts ten times
+too high) and marked all its findings "confirmed": a majority vote would have given wrong conclusions.
+The fragile spots of the result above and the limits of the leakage checks come from this review.
 
 All reports are in [`reports/`](reports/).
 
@@ -238,7 +265,7 @@ python scripts/forecast.py --at "2026-08-27 01:00" --json
 ```
 
 `status` is `quiet` (with a probability), `under_alert` or `no_forecast` (a short pause between alerts or
-a data gap). From Python:
+a data gap). From Python, with `src` on the import path (`PYTHONPATH=src`; the scripts add it themselves):
 
 ```python
 from alerts.config import load_config
@@ -263,6 +290,8 @@ download. To forecast the current hour, three steps are missing; the plan is in 
 
 - The model has not seen data for a month: the main series ended on 7 September. In a real deployment it
   would have to be retrained.
+- Part of the edge over B1 may be memory of recent alerts: a B1 with exponential weights is level with
+  LightGBM on validation at h = 3 and 6 and was not run on the test ([Results](#results)).
 - `scripts/forecast.py` replays past hours; it is not a live forecast. What a live one needs is listed in
   [Embedding](#embedding).
 - The models were trained before the alert levels were introduced. The level is used neither as a feature
