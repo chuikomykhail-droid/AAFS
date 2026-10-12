@@ -1,105 +1,106 @@
 <!-- CC-EXPORT:README -->
-# Логи работы с ИИ
+# AI work logs
 
-Здесь собраны все логи работы над проектом AAFS (прогноз воздушных тревог по районам, см.
-[README проекта](../README.md) и [PLAN.md](../PLAN.md)) за 9–12 октября 2026 года, а также разбор того, как была
-устроена эта работа.
+This folder holds every log of the work on AAFS (raion-level air-raid alert forecasting, see the
+[project README](../README.md) and [PLAN.md](../PLAN.md)) from 9 to 12 October 2026, together with an analysis of how
+that work was organised.
 
-Мы работали с тремя инструментами:
-- **claude.ai** — обсуждение идеи, план, ревью отчётов агентов;
-- **Antigravity** — параллельные агенты на разных моделях;
-- **Claude Code** — основная реализация.
+We used three tools:
+- **claude.ai** — discussing the idea, the plan, reviewing the agents' reports;
+- **Antigravity** — parallel agents on different models;
+- **Claude Code** — the main implementation.
 
-Решения о том, что делать, что принять и что переделать, принимали мы. Агенты исследовали данные, писали
-код и ревью, а их выводы мы проверяли на данных и сверяли между собой.
+Decisions on what to do, what to accept and what to redo were ours. The agents explored the data, wrote code and
+reviews; we checked their conclusions on the data and against each other.
 
-**Содержание:**
-[Путеводитель](#путеводитель) ·
-[Как была организована работа](#как-была-организована-работа) ·
-[Ключевые моменты](#ключевые-моменты) ·
-[Анализ пойманных ошибок](#анализ-пойманных-ошибок) ·
-[Рефлексия](#рефлексия) ·
-[Указатель упоминаний](#указатель-упоминаний)
+**Contents:**
+[Guide](#guide) ·
+[How the work was organised](#how-the-work-was-organised) ·
+[Key moments](#key-moments) ·
+[Analysis of caught errors](#analysis-of-caught-errors) ·
+[Index of mentions](#index-of-mentions)
+
+The reflection is in [REFLECTION.txt](REFLECTION.txt).
 
 ---
 
-## Путеводитель
+## Guide
 
-### Если времени мало
+### If you are short on time
 
-1. [Схема работы](#схема) и [хронология](#хронология) — общая картина за минуту.
-2. [Три агента этапа 1 и их разбор](#1-три-агента-на-одной-задаче-согласие--не-проверка) — почему совпадение
-   выводов агентов ничего не доказывает.
-3. [Наш вопрос, который нашёл утечку](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec)
-   (Claude Code, 11.10 02:32). Тесты эту утечку не ловили.
-4. [Ревью проекта двумя линиями агентов](#5-ревью-двумя-независимыми-линиями-агентов) и
-   [вопрос, после которого исправлен подбор гиперпараметров](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de).
-5. [Анализ 32 пойманных ошибок](#анализ-пойманных-ошибок).
+1. [Workflow diagram](#diagram) and [timeline](#timeline) — the whole picture in a minute.
+2. [Three stage-1 agents and how their reports were checked](#1-three-agents-on-one-task-agreement-is-not-verification) —
+   why agreement between agents proves nothing.
+3. [Our question that found a leak](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec)
+   (Claude Code, 11.10 02:32). The tests did not catch it.
+4. [The project review by two lines of agents](#5-review-by-two-independent-lines-of-agents) and
+   [the question that led to fixing hyperparameter tuning](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de).
+5. [Analysis of the 32 caught errors](#analysis-of-caught-errors).
 
-### Структура папки
+### Folder structure
 
 ```
 ai_logs/
-├── README.md                    ← этот файл
-├── export_claude_code.py        ← скрипт выгрузки Claude Code и claude.ai (замены секретов, таблица ниже)
-├── claude_ai/                   ← 1. чат планирования (claude.ai, браузер)
+├── README.md                    ← this file
+├── REFLECTION.txt               ← reflection (~100 words, plain text)
+├── export_claude_code.py        ← export script for Claude Code and claude.ai (secret redaction, table below)
+├── claude_ai/                   ← 1. planning chat (claude.ai, browser)
 │   ├── chat_planning.md
 │   └── raw/chat_planning.jsonl
-├── antigravity/                 ← 2. Antigravity (выгрузки сделали сами агенты)
-│   ├── main_dialogue.md         ←    основной чат: запуск агентов, этапы 1б–2, ревью
-│   ├── raw/                     ←    его сырые JSONL (компактный и _full)
-│   ├── stage1_agents/           ←    агенты этапа 1, у каждого README, лог диалога и raw/
+├── antigravity/                 ← 2. Antigravity (exported by the agents themselves)
+│   ├── main_dialogue.md         ←    main chat: launching agents, stages 1b–2, reviews
+│   ├── raw/                     ←    its raw JSONL (compact and _full)
+│   ├── stage1_agents/           ←    stage-1 agents, each with a README, dialogue log and raw/
 │   │   ├── claude_opus/
 │   │   ├── gemini_flash/
 │   │   └── gemini_pro/
-│   └── review_agents/           ←    7 агентов ревью (gemini-3.1-pro): stage*.md и raw/
+│   └── review_agents/           ←    7 review agents (gemini-3.1-pro): stage*.md and raw/
 └── claude_code/                 ← 3. Claude Code
-    ├── <дата>_<тема>_<id>.md    ←    три сессии; самая длинная разбита по дням
-    ├── review_agents/           ←    8 агентов ревью из сессии критического анализа
-    └── raw/claude_code_raw.zip  ←    исходные JSONL всех сессий и агентов (41,5 МБ → zip)
+    ├── <date>_<topic>_<id>.md   ←    three sessions; the longest is split by day
+    ├── review_agents/           ←    8 review agents from the critical-analysis session
+    └── raw/claude_code_raw.zip  ←    source JSONL of all sessions and agents (41.5 MB → zip)
 ```
 
+Auxiliary Claude Code sessions are not included, among them the session in which this export was prepared.
 
-Служебные сессии Claude Code не включены, в том числе сессия, в которой готовилась эта выгрузка.
-
-### Состав
+### Contents of the logs
 
 <!-- AUTO:table -->
-**claude.ai — чат планирования**
+**claude.ai — planning chat**
 
-| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
+| File | Period (Kyiv) | Messages | First user message |
 |---|---|---|---|
 | [claude_ai/chat_planning.md](claude_ai/chat_planning.md) | 2026-10-09 23:20 → 2026-10-12 22:47 | 54 | Мне нужно сделать тестовое задание: Congratulations! Your Stage 1 application demonstrated the crit… |
 
-**Antigravity — основной чат**
+**Antigravity — main chat**
 
-| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
+| File | Period (Kyiv) | Messages | First user message |
 |---|---|---|---|
 | [antigravity/main_dialogue.md](antigravity/main_dialogue.md) | 2026-10-10 10:57 → 2026-10-12 22:02 | 101 | синхронизируй проэкт с репозиторием https://github.com/chuikomykhail-droid/AAFS |
 
-**Antigravity — агенты этапа 1**
+**Antigravity — stage-1 agents**
 
-| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
+| File | Period (Kyiv) | Messages | First user message |
 |---|---|---|---|
 | [antigravity/stage1_agents/claude_opus/main_dialogue.md](antigravity/stage1_agents/claude_opus/main_dialogue.md) | 2026-10-10 17:02 → 2026-10-12 23:23 | 29 | Ты один из трех параллельных агентов и будешь работать с веткой claude-opus. Твоя задача:прочитать … |
 | [antigravity/stage1_agents/gemini_flash/chat.md](antigravity/stage1_agents/gemini_flash/chat.md) | 2026-10-10 11:50 → 2026-10-12 23:10 | 9 | Ты один из трех параллельных агентов и будешь работать с веткой gemini-flash. Твоя задача: прочитат… |
 | [antigravity/stage1_agents/gemini_pro/chat.md](antigravity/stage1_agents/gemini_pro/chat.md) | 2026-10-10 11:51 → 2026-10-12 23:17 | 8 | Ты один из трех параллельных агентов и будешь работать с веткой gemini-pro. Твоя задача: прочитать … |
 
-**Antigravity — агенты ревью (gemini-3.1-pro)**
+**Antigravity — review agents (gemini-3.1-pro)**
 
-| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
+| File | Period (Kyiv) | Messages | First user message |
 |---|---|---|---|
-| [antigravity/review_agents/stage0-1b.md](antigravity/review_agents/stage0-1b.md) | 2026-10-11 21:08 → 2026-10-11 21:13 | 6 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage2.md](antigravity/review_agents/stage2.md) | 2026-10-11 21:08 → 2026-10-11 21:17 | 4 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage3.md](antigravity/review_agents/stage3.md) | 2026-10-11 21:07 → 2026-10-11 21:12 | 5 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage4-6.md](antigravity/review_agents/stage4-6.md) | 2026-10-11 21:09 → 2026-10-11 21:24 | 5 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage5-leakage.md](antigravity/review_agents/stage5-leakage.md) | 2026-10-11 21:07 → 2026-10-11 21:22 | 13 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage7.md](antigravity/review_agents/stage7.md) | 2026-10-11 21:06 → 2026-10-11 21:20 | 16 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
-| [antigravity/review_agents/stage8.md](antigravity/review_agents/stage8.md) | 2026-10-11 21:06 → 2026-10-11 21:17 | 16 | The following is a not actually sent by the user. It is provided by the system as important informa… *(задание агенту)* |
+| [antigravity/review_agents/stage0-1b.md](antigravity/review_agents/stage0-1b.md) | 2026-10-11 21:08 → 2026-10-11 21:13 | 6 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage2.md](antigravity/review_agents/stage2.md) | 2026-10-11 21:08 → 2026-10-11 21:17 | 4 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage3.md](antigravity/review_agents/stage3.md) | 2026-10-11 21:07 → 2026-10-11 21:12 | 5 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage4-6.md](antigravity/review_agents/stage4-6.md) | 2026-10-11 21:09 → 2026-10-11 21:24 | 5 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage5-leakage.md](antigravity/review_agents/stage5-leakage.md) | 2026-10-11 21:07 → 2026-10-11 21:22 | 13 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage7.md](antigravity/review_agents/stage7.md) | 2026-10-11 21:06 → 2026-10-11 21:20 | 16 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
+| [antigravity/review_agents/stage8.md](antigravity/review_agents/stage8.md) | 2026-10-11 21:06 → 2026-10-11 21:17 | 16 | The following is a not actually sent by the user. It is provided by the system as important informa… *(task given to the agent)* |
 
-**Claude Code — сессии и агенты ревью**
+**Claude Code — sessions and review agents**
 
-| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
+| File | Period (Kyiv) | Messages | First user message |
 |---|---|---|---|
 | [2026-10-11_stage2-plan-decisions_2d7ee671.md](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md)<br>[2026-10-12_stage2-plan-decisions_2d7ee671.md](claude_code/2026-10-12_stage2-plan-decisions_2d7ee671.md) | 2026-10-11 01:31 → 2026-10-12 18:12 | 124 | Проанализируй файлы @PLAN.md и @DECISIONS.md , в них описана общая идея проекта над которым я работ… |
 | [2026-10-11_critical-analysis_57049ae5.md](claude_code/2026-10-11_critical-analysis_57049ae5.md) | 2026-10-11 08:46 → 2026-10-12 14:32 | 51 | Проведи глубокий критический анализ проекта согласно файлам @PLAN.md и @DECISIONS.md Сейчас проект … |
@@ -113,287 +114,275 @@ ai_logs/
 | ↳ [review-stages-0-1b_ab787b28.md](claude_code/review_agents/review-stages-0-1b_ab787b28.md) | 2026-10-11 20:19 → 2026-10-12 08:43 | 1 | Рабочая папка проекта: d:\Flash\golova\KSE_AI\AAFS (Windows; доступны Bash (Git Bash) и PowerShell)… |
 | [2026-10-12_yellow-red-alerts_0efe39d2.md](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md) | 2026-10-12 18:13 → 2026-10-12 21:45 | 54 | В этом проекте я разрабатываю систему анализа архива воздушных тревог, подробнее можешь прочитать в… |
 
-Сообщений = реплики пользователя + текстовые ответы ассистента; вызовы инструментов не считаются. У агентов «пользователь» — тот, кто их запустил: основной агент или первый запрос.
+Messages = user messages + text replies of the assistant; tool calls are not counted. For agents, the "user" is whoever launched them: the main agent or the first prompt. The logs are in Russian.
 <!-- /AUTO:table -->
 
-### Как читать
+### How to read
 
-- **Claude Code** (`claude_code/`). В шапке каждого файла указаны id сессии, период и число сообщений. Время
-  везде киевское. Вызовы инструментов свёрнуты в блоки «🔧 Инструмент: что делает»: аргументы обрезаны до 2000
-  символов, результаты — до 3000. Служебные вставки и блоки рассуждений опущены, но они есть в исходных JSONL.
-  У места запуска агента стоит ссылка на его лог, а в логе агента — обратная ссылка на место запуска.
-- **Antigravity** (`antigravity/`). Выгрузки сделали сами агенты, поэтому формат у них свой, заголовки на
-  украинском. В `raw/` для каждого чата есть компактный JSONL и полный (`_full`).
-- **claude.ai** (`claude_ai/`). Чат выгружен из браузера в JSON и Markdown.
-- **Секреты.** Токен alerts.in.ua и email автора заменены на `[REDACTED_TOKEN]` / `[REDACTED_EMAIL]` в Markdown и
-  в сырых файлах. Проверка `grep` по всей папке, включая содержимое zip, ничего не находит. Как это сделано —
-  в [export_claude_code.py](export_claude_code.py).
+- **Claude Code** (`claude_code/`). Each file header gives the session id, period and number of messages. All
+  times are Kyiv time. Tool calls are collapsed into "🔧 Tool: what it does" blocks; arguments are cut to 2000
+  characters, results to 3000. System inserts and thinking blocks are omitted but kept in the source JSONL. Where
+  an agent is launched there is a link to its log, and the agent's log links back. The logs themselves are in
+  Russian, as the work was.
+- **Antigravity** (`antigravity/`). Exported by the agents themselves, so the format is their own and headings are
+  in Ukrainian. `raw/` has a compact and a full (`_full`) JSONL for every chat.
+- **claude.ai** (`claude_ai/`). Exported from the browser as JSON and Markdown.
+- **Secrets.** The alerts.in.ua token and the author's email are replaced with `[REDACTED_TOKEN]` /
+  `[REDACTED_EMAIL]` in Markdown and raw files. A `grep` over the whole folder, including the zip contents, finds
+  nothing. How it is done — [export_claude_code.py](export_claude_code.py).
 
 ---
 
-## Как была организована работа
+## How the work was organised
 
-### Схема
+### Diagram
 
 ```
-claude.ai (чат планирования) ── идея, архитектура, PLAN.md; ревью отчётов; правки плана (этап 8, D23)
+claude.ai (planning chat) ── idea, architecture, PLAN.md; reviewing reports; plan changes (stage 8, D23)
    │
-   ├─► Antigravity: 3 агента на разных моделях, этап 1, независимо
-   │      └─► разбор трёх отчётов в claude.ai → обновлённый план, правила работы для агентов
-   ├─► Antigravity, основной чат: доработка этапа 1 (1б) и этап 2
-   ├─► Claude Code «ревью этапа 2»: ревью → рефакторинг → этапы 3–6 → 7–8
-   ├─► ревью всего проекта: 7 агентов в Antigravity и 7 агентов в Claude Code (+ сводный)
-   │      └─► подтверждённые находки исправлены в Claude Code
-   └─► Claude Code «жёлтые и красные тревоги»: D23, финальное обсуждение, README
+   ├─► Antigravity: 3 agents on different models, stage 1, independently
+   │      └─► three reports reviewed in claude.ai → updated plan, working rules for agents
+   ├─► Antigravity, main chat: finishing stage 1 (1b) and stage 2
+   ├─► Claude Code "stage 2 review": review → refactoring → stages 3–6 → 7–8
+   ├─► review of the whole project: 7 agents in Antigravity and 7 in Claude Code (+ a summarising one)
+   │      └─► confirmed findings fixed in Claude Code
+   └─► Claude Code "yellow and red alerts": D23, final discussion, README
 ```
 
-| Инструмент | Роль | Модели |
+| Tool | Role | Models |
 |---|---|---|
-| claude.ai | Обсуждение задачи и архитектуры, `PLAN.md`; разбор отчётов агентов; изменения плана (этап 8, D23); тексты запросов для агентов | Claude Opus |
-| Antigravity | Независимое выполнение этапа 1 тремя агентами; доработка этапа 1 и этап 2; ревью (7 агентов); второе мнение по находкам ревью | Gemini Flash, Gemini Pro, Claude Opus 4.6; gemini-3.1-pro |
-| Claude Code | Ревью этапа 2 и реализация этапов 2–8 и D23; критический анализ проекта (8 агентов); README | Claude Opus |
+| claude.ai | Discussing the task and architecture, `PLAN.md`; reviewing agents' reports; plan changes (stage 8, D23); writing prompts for agents | Claude Opus |
+| Antigravity | Stage 1 by three agents independently; finishing stage 1 and stage 2; review (7 agents); second opinion on review findings | Gemini Flash, Gemini Pro, Claude Opus 4.6; gemini-3.1-pro |
+| Claude Code | Stage 2 review and implementation of stages 2–8 and D23; critical analysis of the project (8 agents); README | Claude Opus |
 
-Принцип разделения: план и спорные вопросы обсуждались в отдельном чате, где не было кода. Реализация шла у
-агентов. Отчёт каждого этапа проверял кто-то другой: чат планирования, агент на другой модели или отдельная
-сессия ревью.
+The principle: the plan and contested questions were discussed in a separate chat with no code in it.
+Implementation was done by agents. Every stage's report was checked by someone else: the planning chat, an agent on
+another model, or a separate review session.
 
-### Хронология
+### Timeline
 
-| Время (Киев) | Где | Что | Лог |
+| Time (Kyiv) | Where | What | Log |
 |---|---|---|---|
-| 9.10 23:20 – 10.10 00:29 | claude.ai | Разбор задания, бэктест без утечки, источники данных, первый `PLAN.md` | [chat_planning.md](claude_ai/chat_planning.md) |
-| 10.10 10:57 – 17:19 | Antigravity | Настройка параллельной работы; три агента на этапе 1 (Gemini — с 11:50, Claude Opus — 17:02–17:19) | [main_dialogue.md](antigravity/main_dialogue.md), [stage1_agents/](antigravity/stage1_agents/) |
-| 10.10 20:33 – 22:50 | claude.ai | Разбор трёх отчётов; ручная проверка канала; новый план с этапом 1б | [chat_planning.md](claude_ai/chat_planning.md) |
-| 10.10 23:01 – 11.10 01:08 | Antigravity | За основу взята работа Gemini Flash; доделан этап 1б, сделан этап 2 | [main_dialogue.md](antigravity/main_dialogue.md) |
-| 11.10 00:03 | claude.ai | Разбор отчёта о доработке этапа 1 | [chat_planning.md](claude_ai/chat_planning.md) |
-| 11.10 01:31 – 11:42 | Claude Code | Ревью этапа 2, рефакторинг, этапы 3–6 | [stage2-plan-decisions, 11.10](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md) |
-| 11.10 08:46, 15:08 | Claude Code | Критический анализ: на этапе 6 и после завершения проекта | [critical-analysis](claude_code/2026-10-11_critical-analysis_57049ae5.md) |
-| 11.10 11:27 – 11:42 | claude.ai → Claude Code | Получен токен alerts.in.ua: в плане появился этап 8; этапы 7–8 | [chat_planning.md](claude_ai/chat_planning.md), [stage2-plan-decisions](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-07b1cfda) |
-| 11.10 13:39 | Antigravity | Независимый разбор реализации этапа 3 | [main_dialogue.md](antigravity/main_dialogue.md) |
-| 11.10 20:19 – 12.10 09:21 | Claude Code | 7 агентов ревью по этапам и 1 сводный; ночью пауза из-за лимита | [review_agents/](claude_code/review_agents/) |
-| 11.10 21:05 – 21:24 | Antigravity | 7 агентов ревью на gemini-3.1-pro | [review_agents/](antigravity/review_agents/) |
-| 12.10 12:33 – 14:30 | Antigravity, Claude Code | Перекрёстный разбор находок ревью; исправления в отдельной ветке | [main_dialogue.md](antigravity/main_dialogue.md), [critical-analysis](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de) |
-| 12.10 14:37 – 18:08 | Claude Code | README на английском; повторное скачивание данных API | [stage2-plan-decisions, 12.10](claude_code/2026-10-12_stage2-plan-decisions_2d7ee671.md#m-84054240) |
-| 12.10 18:07 – 21:45 | claude.ai → Claude Code | Два уровня тревог (D23); финальное обсуждение и README | [yellow-red-alerts](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md) |
+| 9.10 23:20 – 10.10 00:29 | claude.ai | Task breakdown, leakage-free backtest, data sources, first `PLAN.md` | [chat_planning.md](claude_ai/chat_planning.md) |
+| 10.10 10:57 – 17:19 | Antigravity | Setting up parallel work; three agents on stage 1 (Gemini from 11:50, Claude Opus 17:02–17:19) | [main_dialogue.md](antigravity/main_dialogue.md), [stage1_agents/](antigravity/stage1_agents/) |
+| 10.10 20:33 – 22:50 | claude.ai | Review of the three reports; manual check of the channel; new plan with stage 1b | [chat_planning.md](claude_ai/chat_planning.md) |
+| 10.10 23:01 – 11.10 01:08 | Antigravity | Gemini Flash's work taken as the base; stage 1b finished, stage 2 done | [main_dialogue.md](antigravity/main_dialogue.md) |
+| 11.10 00:03 | claude.ai | Review of the stage-1 completion report | [chat_planning.md](claude_ai/chat_planning.md) |
+| 11.10 01:31 – 11:42 | Claude Code | Stage 2 review, refactoring, stages 3–6 | [stage2-plan-decisions, 11.10](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md) |
+| 11.10 08:46, 15:08 | Claude Code | Critical analysis: at stage 6 and after the project was complete | [critical-analysis](claude_code/2026-10-11_critical-analysis_57049ae5.md) |
+| 11.10 11:27 – 11:42 | claude.ai → Claude Code | alerts.in.ua token received: stage 8 added to the plan; stages 7–8 | [chat_planning.md](claude_ai/chat_planning.md), [stage2-plan-decisions](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-07b1cfda) |
+| 11.10 13:39 | Antigravity | Independent review of the stage 3 implementation | [main_dialogue.md](antigravity/main_dialogue.md) |
+| 11.10 20:19 – 12.10 09:21 | Claude Code | 7 review agents by stage and 1 summarising agent; paused overnight by the usage limit | [review_agents/](claude_code/review_agents/) |
+| 11.10 21:05 – 21:24 | Antigravity | 7 review agents on gemini-3.1-pro | [review_agents/](antigravity/review_agents/) |
+| 12.10 12:33 – 14:30 | Antigravity, Claude Code | Cross-checking review findings; fixes in a separate branch | [main_dialogue.md](antigravity/main_dialogue.md), [critical-analysis](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de) |
+| 12.10 14:37 – 18:08 | Claude Code | README in English; API data downloaded again | [stage2-plan-decisions, 12.10](claude_code/2026-10-12_stage2-plan-decisions_2d7ee671.md#m-84054240) |
+| 12.10 18:07 – 21:45 | claude.ai → Claude Code | Two alert levels (D23); final discussion and README | [yellow-red-alerts](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md) |
 
 ---
 
-## Ключевые моменты
+## Key moments
 
-### 1. Три агента на одной задаче: согласие — не проверка
+### 1. Three agents on one task: agreement is not verification
 
-**10.10, Antigravity и claude.ai.** Этап 1 (разведка структуры данных) мы поручили трём агентам на разных
-моделях — Claude Opus 4.6, Gemini Pro и Gemini Flash. Каждый работал в своей копии репозитория и в своей ветке
-([запуск](antigravity/main_dialogue.md), 11:19; логи —
+**10.10, Antigravity and claude.ai.** We gave stage 1 (exploring the data structure) to three agents on different
+models — Claude Opus 4.6, Gemini Pro and Gemini Flash. Each worked in its own copy of the repository and its own
+branch ([launch](antigravity/main_dialogue.md), 11:19; logs —
 [claude_opus](antigravity/stage1_agents/claude_opus/main_dialogue.md),
 [gemini_flash](antigravity/stage1_agents/gemini_flash/chat.md),
-[gemini_pro](antigravity/stage1_agents/gemini_pro/chat.md)). Агенты Gemini начали в 11:50, Claude Opus — в 17:02.
+[gemini_pro](antigravity/stage1_agents/gemini_pro/chat.md)). The Gemini agents started at 11:50, Claude Opus at 17:02.
 
-Отчёты расходились, и мы проверяли расхождения короткими скриптами на данных, а не большинством голосов
-([разбор в claude.ai](claude_ai/chat_planning.md), 10.10 20:33). Каждый агент где-то ошибся:
-- Claude и Gemini Pro по наивному `groupby().min()` решили, что районные тревоги идут с 2022 года (ошибка 1);
-- Gemini Flash и Gemini Pro не заметили 38% дубликатов (ошибка 3);
-- Gemini Flash решил, что Донецкая область не разбита на районы (ошибка 4).
+The reports disagreed, and we checked the disagreements with short scripts on the data rather than by majority
+vote ([review in claude.ai](claude_ai/chat_planning.md), 10.10 20:33). Every agent was wrong somewhere:
+- Claude and Gemini Pro concluded from a naive `groupby().min()` that raion-level alerts started in 2022 (error 1);
+- Gemini Flash and Gemini Pro missed that 38% of the rows were duplicates (error 3);
+- Gemini Flash decided that Donetsk oblast was not split into raions (error 4).
 
-Совпадение выводов тоже ничего не доказывало. Все три агента сообщили о десятках тысяч перекрытий, которых
-после дедупликации нет (ошибка 2), и никто не заметил, что официальный ряд остановился 7 сентября.
+Agreement proved nothing either. All three agents reported tens of thousands of overlapping alerts that do not
+exist after deduplication (error 2), and none noticed that the official series had stopped on 7 September.
 
-Последнее мы проверили сами: открыли Telegram-канал и убедились, что его последний пост сентябрьский
-([claude.ai](claude_ai/chat_planning.md), 10.10 22:03; D02). По итогам разбора в план добавили этап 1б, правила
-работы для агентов и справочную таблицу цифр. Каждую новую цифру с тех пор сверяли с этой таблицей.
+We checked the latter ourselves: we opened the Telegram channel and confirmed that its last post was from September
+([claude.ai](claude_ai/chat_planning.md), 10.10 22:03; D02). After the review we added stage 1b, working rules for
+agents and a reference table of numbers to the plan. From then on every new number was checked against that table.
 
-### 2. Доработка этапа 1: вопросы к агенту
+### 2. Finishing stage 1: questions to the agent
 
-**10–11.10, основной чат Antigravity** ([main_dialogue.md](antigravity/main_dialogue.md)). За основу взяли работу
-Gemini Flash и доделали этап 1б. Агента приходилось останавливать на деталях:
-- 00:46 — «Причём тут 2023–2024 годы? Мы же их не анализируем». Позже ревью этапа 2 нашло, что фильтр периода
-  так и не был реализован (ошибка 15);
-- 00:53 — в правиле маски (б) из `mask.py` отсчёт шёл от конца тревоги, а в плане — от начала. Исправили на
-  начало, как в плане.
+**10–11.10, Antigravity main chat** ([main_dialogue.md](antigravity/main_dialogue.md)). We took Gemini Flash's work as
+the base and finished stage 1b. The agent had to be stopped on details:
+- 00:46 — "Why 2023–2024? We don't analyse those years." The stage 2 review later found that the period filter had
+  never been implemented (error 15);
+- 00:53 — mask rule (b) in `mask.py` measured from the end of the alert, while the plan said from the start. It was
+  changed to the start, as in the plan.
 
-Маска в тесте заняла 5,53% при пороге «больше 5% — обсудить», и этап 2 начался без обсуждения. Ревью в
-Claude Code отметило нарушение правила (ошибка 14), и разбор этого превышения привёл к главной находке
-ревью — четырёхдневному перерыву канала внутри теста (D15).
+The mask covered 5.53% of the test against a "more than 5% — discuss" threshold, and stage 2 started without that
+discussion. The review in Claude Code flagged the rule violation (error 14), and examining the excess led to the
+review's main finding — a four-day outage of the channel inside the test window (D15).
 
-Ещё две ошибки агента вскрылись на ревью. Вывод про сообщения об угрозах был записан как проверенный, хотя
-среди действий агента не было ни чтения канала, ни ручного просмотра (ошибка 11). D10 агент перевёл в статус
-«зафиксировано» до сверки с ожидаемыми цифрами (ошибка 12).
+Two more agent errors surfaced in review. The conclusion about threat messages was recorded as verified, although
+the agent's actions included neither reading the channel nor a manual check (error 11). The agent set D10 to
+"settled" before checking it against the expected numbers (error 12).
 
-### 3. Ревью этапа 2 и утечка, которую не ловили тесты
+### 3. Stage 2 review and a leak the tests did not catch
 
-**11.10, Claude Code** ([лог](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md)).
-- **[01:31](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-941558f2).** Агент Claude Opus сделал ревью
-  этапа 2. Он нашёл перерыв канала 29.08–02.09 (ошибка 13) и нереализованный фильтр периода (ошибка 15).
-- **[01:57](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-a2c00c20).** Мы подтвердили перерыв по
-  каналу и решили не спешить с этапом 3: сначала переделать этап 2.
-- **[02:32](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec).** Наш вопрос о порядке
-  операций: «выдуманный конец уже записан, а мы смотрим до начала новой тревоги — получается утечка из будущего?»
+**11.10, Claude Code** ([log](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md)).
+- **[01:31](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-941558f2).** A Claude Opus agent reviewed
+  stage 2. It found the channel outage of 29.08–02.09 (error 13) and the missing period filter (error 15).
+- **[01:57](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-a2c00c20).** We confirmed the outage on the
+  channel and decided not to rush stage 3: stage 2 had to be redone first.
+- **[02:32](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec).** Our question about the order of
+  operations: "the invented end is already recorded, and we look before the next alert starts — isn't that a leak
+  from the future?"
 
-Ответ оказался «да». `AlertHistory` в 3 529 парах «единица × момент» отвечала «тихо», хотя отбоя никто не видел
-(ошибка 20). Тест «порча будущего» такую утечку не видит по своей конструкции: её создаёт сам источник, задним
-числом записывая конец тревоги. После этого появились таблица `seen` и `open_until` (D16).
+The answer was yes. In 3,529 "unit × moment" pairs `AlertHistory` answered "quiet" although nobody had seen an
+all-clear (error 20). The "corrupt the future" test cannot see such a leak by construction: the source itself
+creates it by writing the end of the alert retroactively. This is where the `seen` table and `open_until` came
+from (D16).
 
-- **[10:27](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-ac8696cb).** Второй вопрос — об
-  архитектуре: «при новом признаке нужно помнить, что брать из `intervals`, а что из `seen`; можно ли сделать
-  удобнее?»
+- **[10:27](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-ac8696cb).** A second question, about the
+  architecture: "with every new feature one has to remember what to take from `intervals` and what from `seen`;
+  can this be made safer?"
 
-Разбор показал, что признак, прочитавший записанный задним числом конец, проходил проверку утечки
-(ошибка 23). Появились закрытый доступ к истории и проверка знания на момент среза, которая падает на такой
-подмене (D21).
+The analysis showed that a feature reading a retroactively recorded end passed the leakage check (error 23). This
+led to closed access to history and a knowledge-at-cutoff check that fails on such a substitution (D21).
 
-Этапы 3–6 мы ставили очередью ([02:50](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-ec3463c8)), и
-каждый начинался с просьбы «подтяни слабые места» предыдущего.
+We queued stages 3–6 ([02:50](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-ec3463c8)), each one
+starting with "tighten the weak spots" of the previous one.
 
-### 4. Свежие данные другого источника и честный бейзлайн
+### 4. Fresh data from another source and an honest baseline
 
 **11.10 11:27, claude.ai → [Claude Code, 11:42](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-07b1cfda).**
-Получив токен alerts.in.ua, мы обсудили в чате планирования, что это меняет. Источники решили не склеивать, а
-сделать отдельную проверку: модель, замороженная 7 сентября, против бейзлайнов на данных API (этап 8).
+Having received the alerts.in.ua token, we discussed in the planning chat what it changes. We decided not to merge
+the sources but to run a separate check: the model frozen on 7 September against baselines on the API data
+(stage 8).
 
-Первый результат — выигрыш модели +0.09 PR-AUC — был бы завышен втрое: замороженный бейзлайн устарел вместе
-со своей таблицей. Агент заметил это сам и добавил бейзлайн, обновляемый на данных API (ошибка 26). Против
-него остаётся +0.017 при h = 3, и интервал задевает ноль. В README это так и написано.
+The first result — a +0.09 PR-AUC gain — would have been three times too high: the frozen baseline had gone stale
+together with its table. The agent noticed this itself and added a baseline updated on the API data (error 26).
+Against it the gain is +0.017 at h = 3, with an interval that touches zero. The README says exactly that.
 
-### 5. Ревью двумя независимыми линиями агентов
+### 5. Review by two independent lines of agents
 
-**11–12.10.** После завершения проекта мы запустили ревью по этапам двумя линиями:
-- **Claude Code.** 7 агентов, по одному на этап или группу коротких этапов
-  ([промпты](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-3f0ef773),
-  [запуск](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-17af9eb5), [логи](claude_code/review_agents/)).
-  Ночью агентов остановил недельный лимит, утром мы их
-  [возобновили](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-ebff079d), и восьмой агент свёл ревью
-  Claude и Gemini в один список.
-- **Antigravity.** 7 агентов на gemini-3.1-pro ([логи](antigravity/review_agents/)).
+**11–12.10.** Once the project was complete, we ran a stage-by-stage review in two lines:
+- **Claude Code.** 7 agents, one per stage or group of short stages
+  ([prompts](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-3f0ef773),
+  [launch](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-17af9eb5), [logs](claude_code/review_agents/)).
+  The weekly usage limit stopped them overnight; in the morning we
+  [resumed](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-ebff079d) them, and an eighth agent merged the
+  Claude and Gemini reviews into one list.
+- **Antigravity.** 7 agents on gemini-3.1-pro ([logs](antigravity/review_agents/)).
 
-Находки мы не принимали на веру, а проверяли:
-- **Подбор гиперпараметров.** На [вопрос](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de)
-  «LightGBM подбирал число деревьев, заглядывая в тест? Это же нарушает правило 6» ответ был «да, формально»:
-  у последних `h` часов валидации окно метки заходило в тест (ошибка 28). Исправили, подбор повторили — выбор не
-  изменился ни при одном горизонте.
-- **Период данных API.** Баг, найденный агентом ревью этапа 8 (`data_end` берётся как минимум), мы дали
-  проверить ещё двум агентам: сначала Antigravity (12.10 12:56), затем
-  [Claude Code (14:15)](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-1f246dcc), оба раза — «посмотри код,
-  ничего не меняя». Оба подтвердили: повторное скачивание в понедельник сократило бы период, а не продлило
-  (ошибка 29). Исправили в [отдельной ветке](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-33bfe373), с
-  тестом на оборванное скачивание.
-- **Зависимость соседних дней.** В Antigravity (11.10 22:30) мы спросили: налёты дронов идут волнами по несколько
-  дней, соседние дни зависимы — сохранится ли выигрыш, если бутстреп брать блоками по 3 дня? Сводное ревью
-  проверило блоки по 7 дней (F24). При h = 6 интервал задевает ноль, и все проверки устойчивости выигрыш
-  выдерживает только при h = 1 — так и записано в D20 и README.
+We did not take the findings on trust but checked them:
+- **Hyperparameter tuning.** To our [question](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de)
+  "did LightGBM choose the number of trees by peeking into the test? That breaks rule 6" the answer was "formally,
+  yes": for the last `h` hours of validation the label window reached into the test (error 28). We fixed it and
+  re-ran tuning; the choice did not change at any horizon.
+- **The API data period.** A bug found by the stage-8 review agent (`data_end` taken as a minimum) we gave to two more
+  agents: first Antigravity (12.10 12:56), then
+  [Claude Code (14:15)](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-1f246dcc), both times as "look at the
+  code without changing anything". Both confirmed it: downloading again on Monday would have shortened the period
+  instead of extending it (error 29). Fixed in a
+  [separate branch](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-33bfe373), with a test for an interrupted
+  download.
+- **Dependence between neighbouring days.** In Antigravity (11.10 22:30) we asked: drone attacks come in waves lasting
+  several days, so neighbouring days are dependent — does the gain survive a bootstrap over 3-day blocks? The
+  summarising review checked 7-day blocks (F24). At h = 6 the interval touches zero, and the gain survives all
+  robustness checks only at h = 1 — as D20 and the README state.
 
-### 6. Два уровня тревог и контроль объёма в последний день
+### 6. Two alert levels and scope control on the last day
 
-**12.10, claude.ai → Claude Code** ([лог](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md)).
+**12.10, claude.ai → Claude Code** ([log](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md)).
 
-Мы вспомнили, что в сентябре в Украине ввели жёлтые и красные тревоги, а окно проверки на API целиком
-приходится на новый режим (claude.ai, 18:07). Запрос для агента составили в чате планирования, с жёсткими
-рамками: 2,5 часа, модели не переобучать, гиперпараметры не трогать
+We remembered that Ukraine introduced yellow and red alerts in September, and that the API check window lies
+entirely in the new regime (claude.ai, 18:07). The prompt for the agent was written in the planning chat, with hard
+limits: 2.5 hours, no retraining of models, no changes to hyperparameters
 ([18:13](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-2a06390d)).
 
-Сверка каждого числа текста с отчётом поймала три расхождения в черновике D23 (ошибка 31). Подсчёт площадей
-опроверг тезис «красная тревога покрывает всю область», который уже стоял в README (ошибка 32).
+Checking every number of the text against the report caught three discrepancies in the D23 draft (error 31).
+Counting areas refuted the claim "a red alert covers the whole oblast", which was already in the README (error 32).
 
-За 3,5 часа до дедлайна мы
-[спросили](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-a24c881b), стоит ли делать живой прогноз, и решили
-не делать: он записан в план как следующий шаг.
+With 3.5 hours left before the deadline we
+[asked](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-a24c881b) whether a live forecast was worth doing, and
+decided against it: it is in the plan as the next step.
 
-README мы [перестроили](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-478cc867), исходя из того, что его
-первичную проверку тоже может делать ИИ: строгие и конкретные утверждения, главное — в начале. Расхождение D20
-с README [устранили](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-5a1fda93) до сдачи.
+We [restructured](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-478cc867) the README assuming its first
+screening might also be done by AI: strict, specific statements, the main points first. The discrepancy between D20
+and the README was [resolved](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-5a1fda93) before submission.
 
 ---
 
-## Анализ пойманных ошибок
+## Analysis of caught errors
 
-Полный журнал — раздел «Пойманные ошибки ИИ» в [DECISIONS.md](../DECISIONS.md), 32 записи.
+The full journal is the «Пойманные ошибки ИИ» (caught AI errors) section of [DECISIONS.md](../DECISIONS.md), 32 entries, in Russian.
 
-### Где возникали
+### Where they came from
 
-| Источник | Ошибки | Сколько |
+| Source | Errors | Count |
 |---|---|---|
-| Агенты этапа 1 (Claude, Gemini Pro, Gemini Flash) | 1–7, 10 | 8 |
-| Чат планирования (формулировки плана) | 8, 9, 18; частично 13 | 3–4 |
-| Агент Antigravity, этапы 1б–2 | 11, 12, 14–17 | 6 |
-| Claude Code, этапы 2–8 и D23 | 19–32 | 14 |
+| Stage-1 agents (Claude, Gemini Pro, Gemini Flash) | 1–7, 10 | 8 |
+| Planning chat (wording of the plan) | 8, 9, 18; partly 13 | 3–4 |
+| Antigravity agent, stages 1b–2 | 11, 12, 14–17 | 6 |
+| Claude Code, stages 2–8 and D23 | 19–32 | 14 |
 
-У Claude Code ошибок больше не потому, что он ошибался чаще: он написал большую часть кода, а проверки к тому
-времени стали автоматическими и ловили больше.
+Claude Code has more errors not because it erred more often: it wrote most of the code, and by then the checks had
+become automatic and caught more.
 
-### Типы
+### Types
 
-1. **Уверенное утверждение без проверки** — самый частый тип: 1, 4, 6, 8, 9, 11, 25, 27, 32.
-   - Самый показательный случай — 11: вывод записан как проверенный, но проверки не было. Вывод оказался
-     верным, а обоснование — выдуманным.
-   - Ошибка 8 — в плане: фразу «датасет обновляется ежедневно» ассистент чата планирования взял из README датасета, не
-     проверив.
-2. **Подсчёт на грязных данных или в неверном порядке:** 2, 3, 7, 15, 16. Отсюда правила 2 и 8 в плане:
-   дедупликация до любых подсчётов, сверка со справочной таблицей.
-3. **Утечка и тонкости времени** — самые опасные: 18, 20, 21, 23, 28, 29. Они не видны в метриках и проходили
-   существующие тесты.
-   - В 20 утечку создавал сам источник, задним числом записывая выдуманный конец тревоги.
-   - В 28 обучающую часть подбора отрезали правильно, а симметричный отрез валидации пропустили — хотя
-     докстринг утверждал обратное.
-4. **Молчаливая потеря данных в коде:** 17, 24, 30. Например, разные апострофы (U+2019 и U+0027) молча выбросили
-   бы три района и 454 записи (24).
-5. **Завышенный или неподтверждённый результат:** 26, 27, 31, 32 — выигрыш, завышенный втрое, или текст, который
-   расходится с собственным отчётом.
-6. **Нарушение процесса:** 12, 14 — статус «зафиксировано» до сверки; этап 2 начат без обсуждения превышения
-   порога маски.
+1. **Confident claim without verification** — the most frequent type: 1, 4, 6, 8, 9, 11, 25, 27, 32.
+   - The most telling case is 11: the conclusion was recorded as verified, but no verification was done. The
+     conclusion turned out to be right, the justification invented.
+   - Error 8 is in the plan: the planning-chat assistant took "the dataset is updated daily" from the dataset's
+     README without checking.
+2. **Counting on dirty data or in the wrong order:** 2, 3, 7, 15, 16. Hence rules 2 and 8 in the plan: deduplicate
+   before any counting, check against the reference table.
+3. **Leakage and time subtleties** — the most dangerous: 18, 20, 21, 23, 28, 29. They do not show in the metrics and
+   passed the existing tests.
+   - In 20 the leak was created by the source itself, writing an invented alert end retroactively.
+   - In 28 the training part of tuning was cut correctly, but the symmetric cut of validation was missed — while the
+     docstring claimed otherwise.
+4. **Silent data loss in code:** 17, 24, 30. For example, different apostrophes (U+2019 and U+0027) would have
+   silently dropped three raions and 454 records (24).
+5. **Inflated or unconfirmed result:** 26, 27, 31, 32 — a gain inflated threefold, or text that contradicts its own
+   report.
+6. **Process violation:** 12, 14 — "settled" status before verification; stage 2 started without discussing the
+   mask threshold being exceeded.
 
-### Как ловили
+### How they were caught
 
-| Способ | Ошибки |
+| Method | Errors |
 |---|---|
-| Перекрёстная проверка агентов на данных (этап 1) | 1–4, 6, 7, 10 |
-| Ревью отдельным агентом или сессией | 11–18, 28, 29 |
-| Наши вопросы о логике и архитектуре | 20, 23; подтверждение 13 по каналу |
-| Автоматическая сверка и проверки полноты | 16, 19, 24, 30 |
-| Разбор результата до публикации: откуда такая цифра, совпадает ли текст с отчётом | 21, 22, 26, 27, 31, 32 |
-| Методический разбор | 5, 8, 9 |
+| Cross-checking agents on the data (stage 1) | 1–4, 6, 7, 10 |
+| Review by a separate agent or session | 11–18, 28, 29 |
+| Our questions about logic and architecture | 20, 23; confirming 13 on the channel |
+| Automatic reconciliation and completeness checks | 16, 19, 24, 30 |
+| Examining a result before publishing: where does this number come from, does the text match the report | 21, 22, 26, 27, 31, 32 |
+| Methodological analysis | 5, 8, 9 |
 
-### Выводы
+### Conclusions
 
-- **Согласие агентов не доказательство.** Помогало не число агентов, а проверка их расхождений скриптом на данных.
-- **Тест ловит только тот класс ошибок, под который написан.** Обе утечки, найденные нашими вопросами (20, 23),
-  проходили тест «порча будущего». Закрыть этот класс помогла новая проверка (D21), а не новый прогон старой.
-- **Ревью другим агентом окупилось.** Самые серьёзные находки поздних этапов (13, 15, 28, 29) пришли из ревью, а не
-  от агента, писавшего код. Две линии ревью на разных моделях дополняли друг друга, а спорную находку полезно
-  дать проверить двум агентам независимо.
-- **Автоматическая сверка со справочными цифрами со временем стала ловить ошибки сама** (19, 24, 30).
-- **Падающий тест не всегда значит ошибку кода.** В 22 пять ожиданий в тестах были неверными, а код — верным.
-  Каждое падение разбирали по данным, ни одно не «чинилось» подгонкой кода.
-- **ИИ чаще ошибался в утверждениях о данных и результатах, чем в коде.** Отсюда главное правило: любую цифру
-  и любой вывод перепроверять на данных до того, как они попадут в документ.
-
----
-
-## Рефлексия
-
-Тот же текст в виде plain text — [REFLECTION.txt](REFLECTION.txt).
-
-> **What went wrong:** AI agents kept making confident, unchecked claims. Three agents agreed on thousands of
-> overlapping alerts that did not exist and missed that the data had stopped on 7 September. Two leakage bugs
-> passed our tests.
->
-> **How I adjusted:** I treated agreement as no evidence, checked disagreements with scripts on the data, had
-> every stage reviewed by another agent or model, and asked how events unfold in time instead of trusting green
-> tests.
->
-> **Why it is better:** unlike the first attempt, features see only what was known at time t, the modest gain is
-> reported with where it breaks, and all 32 caught errors are logged.
+- **Agreement between agents is not evidence.** What helped was not the number of agents but checking their
+  disagreements with a script on the data.
+- **A test catches only the class of errors it was written for.** Both leaks found by our questions (20, 23) passed
+  the "corrupt the future" test. The class was closed by a new check (D21), not by re-running the old one.
+- **Review by another agent paid off.** The most serious late findings (13, 15, 28, 29) came from review, not from the
+  agent that wrote the code. Two review lines on different models complemented each other, and a contested finding is
+  worth giving to two agents independently.
+- **Automatic reconciliation with reference numbers eventually started catching errors on its own** (19, 24, 30).
+- **A failing test does not always mean a bug in the code.** In 22 five test expectations were wrong and the code was
+  right. Every failure was analysed on the data; none was "fixed" by bending the code.
+- **AI was wrong more often in claims about data and results than in code.** Hence the main rule: re-check every
+  number and every conclusion on the data before it goes into a document.
 
 ---
 
-## Указатель упоминаний
+## Index of mentions
 
-<details><summary>Места в логах, где упоминаются ошибки, ревью, утечка и D-номера решений (собрано скриптом)</summary>
+<details><summary>Places in the logs that mention errors, review, leakage and decision numbers (collected by script)</summary>
 
 <!-- AUTO:candidates -->
-Собрано скриптом по ключевым словам; это указатель, а не выводы.
+Collected by script from keywords (Russian, Ukrainian and English); an index, not conclusions.
 
-#### Пойманные ошибки
+#### Caught errors
 
-Claude Code — реплики пользователя (8 из 8):
+Claude Code — user messages (8 of 8):
 - [Claude Code 2d7ee671 · 2026-10-11 01:57](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-a2c00c20) — «…тику. Добавь два теста которыъ не хватает Строки в журнал ошибок ИИ тоже делай»
 - [Claude Code 2d7ee671 · 2026-10-11 02:32](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec) — «…мотрели, получается что произошла утечка из будущего? Или я неправильно понимаю последовательность этих операций?»
 - [Claude Code 2d7ee671 · 2026-10-11 02:36](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-d5557879) — «Да, сделай исправление и записывай в журнал ошибок ИИ»
@@ -403,7 +392,7 @@ Claude Code — реплики пользователя (8 из 8):
 - [Claude Code 0efe39d2 · 2026-10-12 20:42](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-478cc867) — «… заинтересованного читателя. Также я бы добавил из журнала ошибок несколько самых ярких найденых ошибок с конкретным указанием что случилось бы если бы она не была»
 - [Claude Code 0efe39d2 · 2026-10-12 20:55](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-667a29f1) — «…ожно и сейчас не в приоритете? А вот по поводу наличия там ошибок ии уже не знаю: для этого есть лог, а реадми как будто бы должен представлять продукт а не такие»
 
-Claude Code — ответы ассистента (8 из 40):
+Claude Code — assistant replies (8 of 40):
 - [Claude Code 2d7ee671 · 2026-10-11 01:43](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-78814db7) — «…ики на наблюдаемое (незамаскированное) время. - Для журнала ошибок ИИ это сильная запись: три агента и ассистент планирования видели симптом и не нашли причину. --»
 - [Claude Code 2d7ee671 · 2026-10-11 03:46](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-bd5cd908) — «… добавлены записи D17–D20, обновлены D16 и D18; - в журнале ошибок ИИ новые строки 21–22: ошибка в первоначальном замысле проверки утечки и пять неверных ожиданий в»
 - [Claude Code 2d7ee671 · 2026-10-12 17:49](claude_code/2026-10-12_stage2-plan-decisions_2d7ee671.md#m-679052c8) — «…нье просто не было конца. **Нашёл и исправил ещё одну свою ошибку (строка 30 журнала).** Сравнения с волонтёрским рядом шли по всему периоду API, хотя закреплённый»
@@ -413,12 +402,12 @@ Claude Code — ответы ассистента (8 из 40):
 - [Claude Code 0efe39d2 · 2026-10-12 20:30](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-372b30c1) — «… ещё одну яркую вещь:** инфографика процесса — 32 пойманные ошибки ИИ по этапам, кто ошибся и кто поймал. Это прямо про критерий оценки, и данные уже лежат в DECISI»
 - [Claude Code 0efe39d2 · 2026-10-12 21:43](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-f9b27be8) — «…ницы около 0,60. Фраза «Сумская и Харьковская наравне» была неверна: там B1 лучше. - **Подбор (F27).** Параметры даны для всех трёх горизонтов. Довод «все четыре лучш»
 
-claude.ai и Antigravity — реплики пользователя (3 из 3):
+claude.ai and Antigravity — user messages (3 of 3):
 - [claude.ai · 2026-10-11 00:03](claude_ai/chat_planning.md) — «…времени и положительных длительностей). Исправляю небольшую ошибку в проверке часового пояса (из-за версии библиотеки 'pandas' в тесте) и перепроверяю загрузчик дан»
 - [Antigravity · 2026-10-11 22:30](antigravity/main_dialogue.md) — «…еобучения? И есть ли какие то стандарты как учитывают такие ошибки (если это вообще стоит делать) ?»
 - [Antigravity · 2026-10-12 12:56](antigravity/main_dialogue.md) — «Мг, а вот давай обратим внимание на баг найденвй баг в api check, : data_end берется как минимум. Мне ведь нужно сегодлня обновить данные.»
 
-claude.ai и Antigravity — ответы ассистента (6 из 21):
+claude.ai and Antigravity — assistant replies (6 of 21):
 - [claude.ai · 2026-10-09 23:23](claude_ai/chat_planning.md) — «…чу **Случайное разбиение на train/test.** Это самая частая ошибка. Соседние часы почти одинаковы: если тревога была в 14:00 и в 16:00, то в 15:00 она почти наверня»
 - [claude.ai · 2026-10-10 22:51](claude_ai/chat_planning.md) — «… дорогой агент нужнее не там, где больше работы, а там, где ошибки трудно заметить. **Где ошибки видны сразу, а где нет.** Для этапа 1б у нас уже есть эталон: ожид»
 - [Antigravity · 2026-10-10 23:56](antigravity/main_dialogue.md) — «Исправляю небольшую ошибку в проверке часового пояса (из-за версии библиотеки 'pandas' в тесте) и перепроверяю загрузчик дан»
@@ -426,15 +415,15 @@ claude.ai и Antigravity — ответы ассистента (6 из 21):
 - [Antigravity · 2026-10-12 12:58](antigravity/main_dialogue.md) — «…g.py', файли проекту не змінювалися). --- ### 1. Механізм бага в коді Код, де криється проблема: * \['src/alerts/api_check.py:33-37'\](file:///D:/Flash/golova/KSE»
 - [Antigravity · 2026-10-10 17:24](antigravity/stage1_agents/gemini_flash/chat.md) — «…NS.md)** со всеми нашими выводами, обоснованиями и разбором ошибок ИИ. 2. Файл 'DECISIONS-gemini-flash.md' синхронизирован с ним и зафиксирован в git, чтобы в любом»
 
-#### Ревью
+#### Review
 
-Claude Code — реплики пользователя (4 из 4):
+Claude Code — user messages (4 of 4):
 - [Claude Code 2d7ee671 · 2026-10-11 01:31](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-941558f2) — «…лизация этапа 2. Твоя задача: сделать детальный критический ревью того, что уже сделано. Оценить насколько соблюдены требования, выявить слабые места. Помимо общего»
 - [Claude Code 57049ae5 · 2026-10-11 08:46](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-23a37b90) — «…ь работу системы? Где возможно хромает архитектура? Сделай ревью»
 - [Claude Code 57049ae5 · 2026-10-11 20:04](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-3f0ef773) — «Хочу параллельно запустить агентов для ревью каждого из этапов (возможно разве что обьеденить короткие этапы). Сделай промпты для этого»
 - [Claude Code 57049ae5 · 2026-10-12 14:10](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de) — «…ия пока не запускай. Про рефлексию и сдачу пока не думай В ревью біло упомянуто, что при tuning на валидации таргет заглядывает в первые часы теста. Получается, Li»
 
-Claude Code — ответы ассистента (8 из 25):
+Claude Code — assistant replies (8 of 25):
 - [Claude Code 2d7ee671 · 2026-10-11 01:43](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-78814db7) — «# Ревью этапов 1б–2 ## Главное Ядро этапа 2 написано правильно. Я пересчитал объединение интервалов други»
 - [Claude Code 57049ae5 · 2026-10-11 08:59](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-98c838f1) — «# Ревью проекта на этапе 6 Я прочитал весь код в 'src/', 'tests/' и 'scripts/', а подозрения проверил на д»
 - [Claude Code 57049ae5 · 2026-10-11 20:19](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-bf2cca62) — «…скаю все семь агентов в фоне: каждый читает свой промпт из 'reviews/prompts/' и пишет отчёт в 'reviews/'. Сводный агент стартует, когда отработают все семь.»
@@ -444,13 +433,13 @@ Claude Code — ответы ассистента (8 из 25):
 - [Claude Code 57049ae5 · 2026-10-12 14:11](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-4039036c) — «…нал не затрагивает. **Проверено, что выбор не изменился.** Ревьюер этапа 3 повторил подбор без этих строк. Выбор совпал полностью, включая число деревьев: \| h \| со»
 - [Claude Code 0efe39d2 · 2026-10-12 21:45](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-779fdc64) — «…' коммитом 'a287f89 D20 brought in line with README and the review (F23-F29, F39)'. В коммит вошли только 'DECISIONS.md' и 'PLAN.md'. Ветка совпадает с удалённой, нез»
 
-claude.ai и Antigravity — реплики пользователя (4 из 4):
+claude.ai and Antigravity — user messages (4 of 4):
 - [claude.ai · 2026-10-10 17:33](claude_ai/chat_planning.md) — «… меньше тратить). Поэтому пишу костяк через антигравити, а ревью и доработку буду уже делать с клаудом. Но оцени и это: может на этом этапе все таки стоило бы проан»
 - [claude.ai · 2026-10-10 22:50](claude_ai/chat_planning.md) — «…е на следующие этапы пущу антигравити, которого потом будет ревьюить опять опус. Что скажешь? возможно еще какие то этапы критически важны и их тоже стоит сразу пор»
 - [Antigravity · 2026-10-11 20:43](antigravity/main_dialogue.md) — «…ов на модели gemini-3.1-pro, каждый из которых будет делать ревью одного-двух этапов проекта. Соответсвующие промпты возьми в @\[reviews/prompts\] . ВАЖНО: скрипты ко»
 - [Antigravity · 2026-10-12 12:33](antigravity/main_dialogue.md) — «Проанализируй дополнительно ревью другого агента, лежит в папке @\[reviews/claude\]»
 
-claude.ai и Antigravity — ответы ассистента (6 из 35):
+claude.ai and Antigravity — assistant replies (6 of 35):
 - [claude.ai · 2026-10-09 23:21](claude_ai/chat_planning.md) — «… признаках, внутри написаны на C++. **Риск при проверке.** Ревьюеры будут запускать код, а сборка расширения на pybind11 на чужой машине часто ломается. В задании п»
 - [Antigravity · 2026-10-11 20:58](antigravity/main_dialogue.md) — «…переключите политику с *«Ask for confirmation»* / *«Request review»* на **«Always allow»** (или аналогичный разрешающий статус). --- > 💡 **Совет:** В левой колонке»
 - [Antigravity · 2026-10-11 21:17](antigravity/main_dialogue.md) — «…- ✅ **Stage 8 (Проверка на свежих данных alerts.in.ua):** \['reviews/stage8.md'\](file:///D:/Flash/golova\KSE_AI\AAFS\reviews\stage8.md) Среди его ключевых находок: *»
@@ -458,9 +447,9 @@ claude.ai и Antigravity — ответы ассистента (6 из 35):
 - [Antigravity · 2026-10-11 21:12](antigravity/review_agents/stage3.md) — «Ревью этапа 3 (сетка и целевая переменная) завершено. Детальный отчёт сохранён в файле \['reviews/stage3.»
 - [Antigravity · 2026-10-11 21:17](antigravity/review_agents/stage8.md) — «Ревью этапа 8 полностью завершено. Детальный отчёт записан в \[reviews/stage8.md\](file:///D:/Flash/golova/»
 
-#### Утечка
+#### Leakage
 
-Claude Code — реплики пользователя (8 из 8):
+Claude Code — user messages (8 of 8):
 - [Claude Code 2d7ee671 · 2026-10-11 01:31](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-941558f2) — «… старых результатов (до реформы тревог) 4) Не происходит ли утечек из будущего 5) Строго ли соблюдено разбитие на районы 6) Насколько архитектурно проект готов к р»
 - [Claude Code 2d7ee671 · 2026-10-11 02:32](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-8d9ffcec) — «…того, в какое время мы посмотрели, получается что произошла утечка из будущего? Или я неправильно понимаю последовательность этих операций?»
 - [Claude Code 2d7ee671 · 2026-10-11 11:41](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-87403d84) — «…, его не должно быть в контроле версий, он не должен никуда утечь.»
@@ -470,7 +459,7 @@ Claude Code — реплики пользователя (8 из 8):
 - [Claude Code 57049ae5 · 2026-10-12 14:10](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-b33039de) — «… В ревью біло упомянуто, что при tuning на валидации таргет заглядывает в первые часы теста. Получается, LightGBM формально подбирал число деревьев, заглядывая в тест?»
 - [Claude Code 0efe39d2 · 2026-10-12 20:42](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-478cc867) — «…ких но добротных решений можно упомянуть run_all и проверки утечек. В общем, не так скромно давай перепишем»
 
-Claude Code — ответы ассистента (8 из 31):
+Claude Code — assistant replies (8 of 31):
 - [Claude Code 2d7ee671 · 2026-10-11 01:43](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-78814db7) — «…sv' относятся к 2022–2025 годам. 3. **Важно.** Склейка пауз заглядывает на 15 минут вперёд для признаков других единиц. Запланированное правило масок выбрасывает строки»
 - [Claude Code 2d7ee671 · 2026-10-11 02:43](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-ceb77260) — «…k.csv' и 'units.csv' совпали с прошлой версией. - **Масштаб утечки**, которую закрыло исправление: 3 529 пар «единица × момент», затронуто 358 часовых моментов (5%)»
 - [Claude Code 2d7ee671 · 2026-10-11 10:29](claude_code/2026-10-11_stage2-plan-decisions_2d7ee671.md#m-f6923194) — «…реза и остаётся тем же в обеих версиях. Это ровно тот класс утечки из D16, который нашли вы, а не тест. **Стоит ли исправлять:** да, и это дёшево. Предлагаю два из»
@@ -480,11 +469,11 @@ Claude Code — ответы ассистента (8 из 31):
 - [Claude Code 57049ae5 · 2026-10-12 09:24](claude_code/2026-10-11_critical-analysis_57049ae5.md#m-a19e8706) — «…ь.** Оба набора независимо воспроизвели прогнозы бит в бит. Утечки, которая меняла бы метрики, не нашёл никто. **Выводы README сильнее, чем показывают данные:** -»
 - [Claude Code 0efe39d2 · 2026-10-12 21:05](claude_code/2026-10-12_yellow-red-alerts_0efe39d2.md#m-e256aa90) — «…ailable day; - Two-level alert system (yellow / red); - Leakage control; - Embedding interface; - Documented decisions. - Почему это важно, объясняется в те»
 
-claude.ai и Antigravity — реплики пользователя (2 из 2):
+claude.ai and Antigravity — user messages (2 of 2):
 - [claude.ai · 2026-10-09 23:20](claude_ai/chat_planning.md) — «…r solution on the latest period. Make sure there is no data leakage: nothing your model is trained on or uses as an input may come from after the time at which the»
 - [claude.ai · 2026-10-09 23:23](claude_ai/chat_planning.md) — «Хорошо, плюсы пока откидываем. Что такое бэктест без утечек?»
 
-claude.ai и Antigravity — ответы ассистента (6 из 24):
+claude.ai and Antigravity — assistant replies (6 of 24):
 - [claude.ai · 2026-10-09 23:21](claude_ai/chat_planning.md) — «…ь спроектировать структуру репозитория и схему бэктеста без утечек.»
 - [claude.ai · 2026-10-10 00:00](claude_ai/chat_planning.md) — «…аботы, чтобы он не додумывал структуру данных и не создавал утечек, и уроки из Kizashi. Положи файл в корень репозитория и попроси Claude Code прочитать его перед н»
 - [Antigravity · 2026-10-11 20:44](antigravity/main_dialogue.md) — «…w$ отчёт в 'reviews/stage4-6.md' * Агент 5: '05_stage5-leakage.md' $\rightarrow$ отчёт в 'reviews/stage5-leakage.md' * Агент 6: '06_stage7.md' $\rightarro»
@@ -492,7 +481,7 @@ claude.ai и Antigravity — ответы ассистента (6 из 24):
 - [Antigravity · 2026-10-11 21:23](antigravity/main_dialogue.md) — «Шостий агент (Етап 5 і перевірка на витік даних) щойно успішно завершив роботу та зберіг звіт 'reviews/stage5-leakage.md'. Останній, 4-й аген»
 - [Antigravity · 2026-10-11 21:22](antigravity/review_agents/stage5-leakage.md) — «Ревью этапа 5 и защиты от утечки данных успешно завершено, детальный отчёт сохранён в \[reviews/stage5-leakage.md\](file:///D:/Flash»
 
-#### D-номера решений (первое упоминание каждого)
+#### Decision numbers D (first mention of each)
 
 - D0: [claude.ai · 2026-10-10 22:09](claude_ai/chat_planning.md) — «…ьтату. ## Что в файлах **'DECISIONS.md'** — единый журнал D00–D14: - у каждого решения есть находка, решение, причина, альтернативы и статус («зафиксировано» или»
 - D1: [claude.ai · 2026-10-10 17:41](claude_ai/chat_planning.md) — «…выдать. ## Кто прав по спорным пунктам Хэш файла совпал с D01 Claude. Ниже результаты моих проверок на этом снимке после дедупликации, в рабочем периоде с 7 нояб»

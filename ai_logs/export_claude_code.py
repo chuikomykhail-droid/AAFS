@@ -74,9 +74,9 @@ PASTE_RE = re.compile(r"<(/?)pasted_content\b[^>]*>")
 REPO_PREFIX = re.compile(r"(?i)^(?:[a-z]:|/[a-z])?/Flash/golova/KSE_AI/AAFS/")
 
 CATEGORIES = [
-    ("Пойманные ошибки", re.compile(r"(?i)ошиб|помил|\bбаг|\bbugs?\b|поймал|неверн|неправильн")),
-    ("Ревью", re.compile(r"(?i)ревью|рев['’]?ю|review|аудит")),
-    ("Утечка", re.compile(r"(?i)утеч|витік|витоку|leak|look-?ahead|заглядыв")),
+    ("Caught errors", re.compile(r"(?i)ошиб|помил|\bбаг|\bbugs?\b|поймал|неверн|неправильн")),
+    ("Review", re.compile(r"(?i)ревью|рев['’]?ю|review|аудит")),
+    ("Leakage", re.compile(r"(?i)утеч|витік|витоку|leak|look-?ahead|заглядыв")),
 ]
 D_RE = re.compile(r"\bD(\d{1,2})\b")
 
@@ -520,29 +520,29 @@ def ext_chat(jsonl, md, red):
     users = [m for m in msgs if m[1] == "user"]
     first = users[0][2] if users else red(first_any)
     return {"md": md.relative_to(LOGS).as_posix(), "start": min(ts) if ts else None, "end": max(ts) if ts else None,
-            "n": len(msgs), "first": one_line(first, 100) + ("" if users else " *(задание агенту)*"), "msgs": msgs}
+            "n": len(msgs), "first": one_line(first, 100) + ("" if users else " *(task given to the agent)*"), "msgs": msgs}
 
 
 def ext_groups(red, ai_jsonl):
     groups = []
     if ai_jsonl and ai_jsonl.exists():
-        groups.append(("claude.ai — чат планирования", [ext_chat(ai_jsonl, OUT_AI / f"{ai_jsonl.stem}.md", red)]))
+        groups.append(("claude.ai — planning chat", [ext_chat(ai_jsonl, OUT_AI / f"{ai_jsonl.stem}.md", red)]))
     if (AG / "raw" / "main_dialogue.jsonl").exists():
-        groups.append(("Antigravity — основной чат", [ext_chat(AG / "raw" / "main_dialogue.jsonl", AG / "main_dialogue.md", red)]))
+        groups.append(("Antigravity — main chat", [ext_chat(AG / "raw" / "main_dialogue.jsonl", AG / "main_dialogue.md", red)]))
     stage1 = [ext_chat(p, next((p.parent.parent / n for n in ("chat.md", "main_dialogue.md") if (p.parent.parent / n).exists()),
                                p.parent.parent / "chat.md"), red)
               for p in sorted(AG.glob("stage1_agents/*/raw/transcript.jsonl"))]
     if stage1:
-        groups.append(("Antigravity — агенты этапа 1", stage1))
+        groups.append(("Antigravity — stage-1 agents", stage1))
     reviews = [ext_chat(p, p.parent.parent / f"{p.stem}.md", red)
                for p in sorted(AG.glob("review_agents/raw/*.jsonl")) if not p.stem.endswith("_full")]
     if reviews:
-        groups.append(("Antigravity — агенты ревью (gemini-3.1-pro)", reviews))
+        groups.append(("Antigravity — review agents (gemini-3.1-pro)", reviews))
     return groups
 
 
 def readme_blocks(mains, subs, groups, red):
-    head = ["| Файл | Период (Киев) | Сообщений | Первая реплика пользователя |", "|---|---|---|---|"]
+    head = ["| File | Period (Kyiv) | Messages | First user message |", "|---|---|---|---|"]
     rows = []
     for title, chats in groups:
         rows += [f"**{title}**", ""] + head
@@ -555,12 +555,12 @@ def readme_blocks(mains, subs, groups, red):
         return (f"| {label}{files} | {kyiv(s.start)} → {kyiv(s.end)} | {s.stats['user'] + s.stats['assistant']} "
                 f"| {cell(one_line(first, 100))} |")
 
-    rows += ["**Claude Code — сессии и агенты ревью**", ""] + head
+    rows += ["**Claude Code — sessions and review agents**", ""] + head
     for s in sorted(mains, key=lambda s: s.start):
         rows.append(cc_row(s, "claude_code/"))
         rows += [cc_row(ss, "claude_code/review_agents/", "↳ ") for ss in subs if ss.parent is s]
-    rows += ["", "Сообщений = реплики пользователя + текстовые ответы ассистента; вызовы инструментов не считаются. "
-             "У агентов «пользователь» — тот, кто их запустил: основной агент или первый запрос."]
+    rows += ["", "Messages = user messages + text replies of the assistant; tool calls are not counted. "
+             "For agents, the \"user\" is whoever launched them: the main agent or the first prompt. The logs are in Russian."]
 
     # кандидаты: упоминания по ключевым словам
     pool = []
@@ -571,22 +571,22 @@ def readme_blocks(mains, subs, groups, red):
                              f"(claude_code/{s.anchor_file[it.anchor]}#{it.anchor})"))
     ext_pool = [(ts, role, text, f"[{title.split(' — ')[0]} · {kyiv(ts)}]({c['md']})")
                 for title, chats in groups for c in chats for ts, role, text in c["msgs"]]
-    c = ["Собрано скриптом по ключевым словам; это указатель, а не выводы.", ""]
+    c = ["Collected by script from keywords (Russian, Ukrainian and English); an index, not conclusions.", ""]
     counts = Counter()
     for cat, rx in CATEGORIES:
         c.append(f"#### {cat}")
-        for label, src, kind, cap in (("Claude Code — реплики пользователя", pool, "user", 15),
-                                      ("Claude Code — ответы ассистента", pool, "assistant", 8),
-                                      ("claude.ai и Antigravity — реплики пользователя", ext_pool, "user", 10),
-                                      ("claude.ai и Antigravity — ответы ассистента", ext_pool, "assistant", 6)):
+        for label, src, kind, cap in (("Claude Code — user messages", pool, "user", 15),
+                                      ("Claude Code — assistant replies", pool, "assistant", 8),
+                                      ("claude.ai and Antigravity — user messages", ext_pool, "user", 10),
+                                      ("claude.ai and Antigravity — assistant replies", ext_pool, "assistant", 6)):
             hits = [(text, ref, m) for ts, k, text, ref in src if k == kind for m in [rx.search(text)] if m]
             if hits:
                 chosen = pick(hits, cap)
                 counts[cat] += len(chosen)
-                c += ["", f"{label} ({len(chosen)} из {len(hits)}):"]
+                c += ["", f"{label} ({len(chosen)} of {len(hits)}):"]
                 c += [f"- {ref} — «{snippet(text, m)}»" for text, ref, m in chosen]
         c.append("")
-    c.append("#### D-номера решений (первое упоминание каждого)")
+    c.append("#### Decision numbers D (first mention of each)")
     first = {}
     for ts, _, text, ref in sorted(pool + ext_pool, key=lambda x: x[0] or datetime.min.replace(tzinfo=timezone.utc)):
         for m in D_RE.finditer(text):
