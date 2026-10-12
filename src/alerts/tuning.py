@@ -1,8 +1,9 @@
 """Hyperparameters chosen once on the validation part (PLAN stage 6, D20), never on the test part.
 
 Every candidate is fitted on the rows with t <= train_end - h (labels known when validation starts)
-and scored by log loss on the validation rows. For LightGBM the number of trees comes from early
-stopping on the same validation rows; the backtest then uses that fixed number.
+and scored by log loss on the validation rows with t <= val_end - h: the label window (t, t+h] of a
+later row reaches into the test part. For LightGBM the number of trees comes from early stopping on
+the same validation rows; the backtest then uses that fixed number.
 """
 import itertools
 import logging
@@ -17,11 +18,16 @@ from alerts.models.learned import GBMModel, LogisticModel
 logger = logging.getLogger(__name__)
 
 
+def validation_rows(rows: pd.DataFrame, h: int, cfg: dict) -> pd.DataFrame:
+    """Validation rows whose labels are known before the test part starts (t + h <= val_end)."""
+    return rows[(rows['part'] == 'val') & (rows['t'] <= ts(cfg['periods']['val_end']) - pd.Timedelta(hours=h))]
+
+
 def tune(data: pd.DataFrame, h: int, cfg: dict) -> tuple[dict, pd.DataFrame]:
     ycol = f'y_{h}'
     lab = data[data[ycol].notna()]
     train = lab[lab['t'] <= ts(cfg['periods']['train_end']) - pd.Timedelta(hours=h)]
-    val = lab[lab['part'] == 'val']
+    val = validation_rows(lab, h, cfg)
     y, yv = train[ycol].to_numpy(dtype=float), val[ycol].to_numpy(dtype=float)
     m = cfg['models']
     rows = []

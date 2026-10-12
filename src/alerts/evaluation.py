@@ -1,7 +1,7 @@
 """Backtest evaluation (PLAN stages 4 and 6; D18): run models, bootstrap, per-oblast tables, calibration.
 
 The reference for paired differences is chosen on the validation part only (lowest log loss among
-the baselines), never on the test part (PLAN rule 6).
+the baselines, on rows whose labels end before the test part), never on the test part (PLAN rule 6).
 """
 import logging
 
@@ -10,6 +10,7 @@ import pandas as pd
 
 from alerts import backtest, figures
 from alerts.metrics import METRICS, bootstrap, calibration, score
+from alerts.tuning import validation_rows
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def evaluate(data: pd.DataFrame, h: int, models: dict, baselines: list, cfg: dic
     preds = backtest.run(data, h, models, cfg)
     names = list(models)
     bs = cfg['bootstrap']
-    val = preds[preds['part'] == 'val']
+    val = validation_rows(preds, h, cfg)
     reference = min(baselines, key=lambda m: score(val['y'], val[f'p_{m}'])['log_loss'])
     tables = {part: bootstrap(preds[preds['part'] == part], names, bs['n_reps'], bs['seed'], bs['ci'], reference)
               for part in ['val', 'test']}

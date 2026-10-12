@@ -27,6 +27,8 @@ _BASE_CFG = {
     'report': {'forecast_units': [], 'forecast_days': 7},
     'api': {'base_url': '', 'history_path': '', 'token_env': '', 'token_file': '', 'pause_seconds': 0,
             'retry_after_429_seconds': 0, 'raw_dir': '', 'oblast_uids': []},
+    'levels': {'kyiv_start': '', 'lviv_start': '', 'channel_stop': '', 'horizon': 3},
+    'visuals': {'map_decimals': 2, 'horizon': 3, 'gif_lead_hours': 12, 'gif_hours': 36, 'gif_frame_minutes': 15, 'gif_frame_ms': 120, 'forecast_min_train_days': 14},
     'horizons': [1, 3, 6],
     'paths': {'units': '', 'mask': '', 'intervals': '', 'seen': '', 'neighbors': '', 'grid': '', 'predictions': '', 'similar_pairs': '', 'reports': ''},
 }

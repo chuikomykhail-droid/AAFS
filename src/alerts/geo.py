@@ -26,8 +26,8 @@ def _our_name(adm1: str, adm2: str, renames_back: dict) -> tuple[str, str]:
     return f'{adm1} oblast', raion
 
 
-def raion_adjacency(cfg: dict) -> pd.DataFrame:
-    """Pairs of neighbouring raions in our naming: columns oblast_a, raion_a, oblast_b, raion_b."""
+def boundaries(cfg: dict) -> tuple[list, list]:
+    """The pinned admin-2 features and their (oblast, raion) names in our naming, in the same order."""
     g = cfg['geo']
     p = ROOT / g['path']
     if file_sha256(p) != g['sha256']:
@@ -35,7 +35,13 @@ def raion_adjacency(cfg: dict) -> pd.DataFrame:
     with open(p, encoding='utf-8') as f:
         features = json.load(f)['features']
     back = {geo: ours for ours, geo in g['renames'].items()}
-    names = [_our_name(ft['properties']['adm1_name'], ft['properties']['adm2_name'], back) for ft in features]
+    return features, [_our_name(ft['properties']['adm1_name'], ft['properties']['adm2_name'], back) for ft in features]
+
+
+def raion_adjacency(cfg: dict) -> pd.DataFrame:
+    """Pairs of neighbouring raions in our naming: columns oblast_a, raion_a, oblast_b, raion_b."""
+    g = cfg['geo']
+    features, names = boundaries(cfg)
 
     vertex_owners = defaultdict(set)
     for i, ft in enumerate(features):
