@@ -529,7 +529,9 @@ def ext_groups(red, ai_jsonl):
         groups.append(("claude.ai — чат планирования", [ext_chat(ai_jsonl, OUT_AI / f"{ai_jsonl.stem}.md", red)]))
     if (AG / "raw" / "main_dialogue.jsonl").exists():
         groups.append(("Antigravity — основной чат", [ext_chat(AG / "raw" / "main_dialogue.jsonl", AG / "main_dialogue.md", red)]))
-    stage1 = [ext_chat(p, p.parent.parent / "chat.md", red) for p in sorted(AG.glob("stage1_agents/*/raw/transcript.jsonl"))]
+    stage1 = [ext_chat(p, next((p.parent.parent / n for n in ("chat.md", "main_dialogue.md") if (p.parent.parent / n).exists()),
+                               p.parent.parent / "chat.md"), red)
+              for p in sorted(AG.glob("stage1_agents/*/raw/transcript.jsonl"))]
     if stage1:
         groups.append(("Antigravity — агенты этапа 1", stage1))
     reviews = [ext_chat(p, p.parent.parent / f"{p.stem}.md", red)

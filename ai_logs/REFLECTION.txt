@@ -1,0 +1,5 @@
+What went wrong: AI agents kept making confident, unchecked claims. Three agents agreed on thousands of overlapping alerts that did not exist and missed that the data had stopped on 7 September. Two leakage bugs passed our tests.
+
+How I adjusted: I treated agreement as no evidence, checked disagreements with scripts on the data, had every stage reviewed by another agent or model, and asked how events unfold in time instead of trusting green tests.
+
+Why it is better: unlike the first attempt, features see only what was known at time t, the modest gain is reported with where it breaks, and all 32 caught errors are logged.

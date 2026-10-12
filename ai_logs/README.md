@@ -45,10 +45,11 @@ ai_logs/
 ├── claude_ai/                   ← 1. чат планирования (claude.ai, браузер)
 │   ├── chat_planning.md
 │   └── raw/chat_planning.jsonl
-├── antigravity/                 ← 2. Antigravity (выгрузки сделали сами агенты Gemini)
+├── antigravity/                 ← 2. Antigravity (выгрузки сделали сами агенты)
 │   ├── main_dialogue.md         ←    основной чат: запуск агентов, этапы 1б–2, ревью
 │   ├── raw/                     ←    его сырые JSONL (компактный и _full)
-│   ├── stage1_agents/           ←    агенты этапа 1, у каждого README, chat.md и raw/
+│   ├── stage1_agents/           ←    агенты этапа 1, у каждого README, лог диалога и raw/
+│   │   ├── claude_opus/
 │   │   ├── gemini_flash/
 │   │   └── gemini_pro/
 │   └── review_agents/           ←    7 агентов ревью (gemini-3.1-pro): stage*.md и raw/
@@ -58,8 +59,6 @@ ai_logs/
     └── raw/claude_code_raw.zip  ←    исходные JSONL всех сессий и агентов (41,5 МБ → zip)
 ```
 
-Лог третьего агента этапа 1, Claude Opus 4.6, в выгрузку не вошёл. Его выводы видны в разборе отчётов в
-claude.ai и в `DECISIONS.md` (D00, ошибки 1–7).
 
 Служебные сессии Claude Code не включены, в том числе сессия, в которой готовилась эта выгрузка.
 
@@ -82,6 +81,7 @@ claude.ai и в `DECISIONS.md` (D00, ошибки 1–7).
 
 | Файл | Период (Киев) | Сообщений | Первая реплика пользователя |
 |---|---|---|---|
+| [antigravity/stage1_agents/claude_opus/main_dialogue.md](antigravity/stage1_agents/claude_opus/main_dialogue.md) | 2026-10-10 17:02 → 2026-10-12 23:23 | 29 | Ты один из трех параллельных агентов и будешь работать с веткой claude-opus. Твоя задача:прочитать … |
 | [antigravity/stage1_agents/gemini_flash/chat.md](antigravity/stage1_agents/gemini_flash/chat.md) | 2026-10-10 11:50 → 2026-10-12 23:10 | 9 | Ты один из трех параллельных агентов и будешь работать с веткой gemini-flash. Твоя задача: прочитат… |
 | [antigravity/stage1_agents/gemini_pro/chat.md](antigravity/stage1_agents/gemini_pro/chat.md) | 2026-10-10 11:51 → 2026-10-12 23:17 | 8 | Ты один из трех параллельных агентов и будешь работать с веткой gemini-pro. Твоя задача: прочитать … |
 
@@ -122,7 +122,7 @@ claude.ai и в `DECISIONS.md` (D00, ошибки 1–7).
   везде киевское. Вызовы инструментов свёрнуты в блоки «🔧 Инструмент: что делает»: аргументы обрезаны до 2000
   символов, результаты — до 3000. Служебные вставки и блоки рассуждений опущены, но они есть в исходных JSONL.
   У места запуска агента стоит ссылка на его лог, а в логе агента — обратная ссылка на место запуска.
-- **Antigravity** (`antigravity/`). Выгрузки сделали сами агенты Gemini, поэтому формат у них свой, заголовки на
+- **Antigravity** (`antigravity/`). Выгрузки сделали сами агенты, поэтому формат у них свой, заголовки на
   украинском. В `raw/` для каждого чата есть компактный JSONL и полный (`_full`).
 - **claude.ai** (`claude_ai/`). Чат выгружен из браузера в JSON и Markdown.
 - **Секреты.** Токен alerts.in.ua и email автора заменены на `[REDACTED_TOKEN]` / `[REDACTED_EMAIL]` в Markdown и
@@ -162,7 +162,7 @@ claude.ai (чат планирования) ── идея, архитекту�
 | Время (Киев) | Где | Что | Лог |
 |---|---|---|---|
 | 9.10 23:20 – 10.10 00:29 | claude.ai | Разбор задания, бэктест без утечки, источники данных, первый `PLAN.md` | [chat_planning.md](claude_ai/chat_planning.md) |
-| 10.10 10:57 – 11:51 | Antigravity | Настройка параллельной работы; запуск трёх агентов на этапе 1 | [main_dialogue.md](antigravity/main_dialogue.md), [stage1_agents/](antigravity/stage1_agents/) |
+| 10.10 10:57 – 17:19 | Antigravity | Настройка параллельной работы; три агента на этапе 1 (Gemini — с 11:50, Claude Opus — 17:02–17:19) | [main_dialogue.md](antigravity/main_dialogue.md), [stage1_agents/](antigravity/stage1_agents/) |
 | 10.10 20:33 – 22:50 | claude.ai | Разбор трёх отчётов; ручная проверка канала; новый план с этапом 1б | [chat_planning.md](claude_ai/chat_planning.md) |
 | 10.10 23:01 – 11.10 01:08 | Antigravity | За основу взята работа Gemini Flash; доделан этап 1б, сделан этап 2 | [main_dialogue.md](antigravity/main_dialogue.md) |
 | 11.10 00:03 | claude.ai | Разбор отчёта о доработке этапа 1 | [chat_planning.md](claude_ai/chat_planning.md) |
@@ -184,8 +184,10 @@ claude.ai (чат планирования) ── идея, архитекту�
 
 **10.10, Antigravity и claude.ai.** Этап 1 (разведка структуры данных) мы поручили трём агентам на разных
 моделях — Claude Opus 4.6, Gemini Pro и Gemini Flash. Каждый работал в своей копии репозитория и в своей ветке
-([запуск](antigravity/main_dialogue.md), 11:19; логи — [gemini_flash](antigravity/stage1_agents/gemini_flash/chat.md),
-[gemini_pro](antigravity/stage1_agents/gemini_pro/chat.md)).
+([запуск](antigravity/main_dialogue.md), 11:19; логи —
+[claude_opus](antigravity/stage1_agents/claude_opus/main_dialogue.md),
+[gemini_flash](antigravity/stage1_agents/gemini_flash/chat.md),
+[gemini_pro](antigravity/stage1_agents/gemini_pro/chat.md)). Агенты Gemini начали в 11:50, Claude Opus — в 17:02.
 
 Отчёты расходились, и мы проверяли расхождения короткими скриптами на данных, а не большинством голосов
 ([разбор в claude.ai](claude_ai/chat_planning.md), 10.10 20:33). Каждый агент где-то ошибся:
@@ -200,7 +202,7 @@ claude.ai (чат планирования) ── идея, архитекту�
 ([claude.ai](claude_ai/chat_planning.md), 10.10 22:03; D02). По итогам разбора в план добавили этап 1б, правила
 работы для агентов и справочную таблицу цифр. Каждую новую цифру с тех пор сверяли с этой таблицей.
 
-### 2. Доработка этапа 1: вопросы к агенту и наша собственная ошибка
+### 2. Доработка этапа 1: вопросы к агенту
 
 **10–11.10, основной чат Antigravity** ([main_dialogue.md](antigravity/main_dialogue.md)). За основу взяли работу
 Gemini Flash и доделали этап 1б. Агента приходилось останавливать на деталях:
@@ -209,8 +211,7 @@ Gemini Flash и доделали этап 1б. Агента приходилос
 - 00:53 — в правиле маски (б) из `mask.py` отсчёт шёл от конца тревоги, а в плане — от начала. Исправили на
   начало, как в плане.
 
-В 01:08 мы сами решили идти к этапу 2, хотя маска в тесте занимала 5,53% при пороге «больше 5% — обсудить»:
-сочли порог стоп-словом против аномалий, а не признаком провала. Это была наша ошибка процесса. Ревью в
+Маска в тесте заняла 5,53% при пороге «больше 5% — обсудить», и этап 2 начался без обсуждения. Ревью в
 Claude Code отметило нарушение правила (ошибка 14), и разбор этого превышения привёл к главной находке
 ревью — четырёхдневному перерыву канала внутри теста (D15).
 
@@ -323,7 +324,7 @@ README мы [перестроили](claude_code/2026-10-12_yellow-red-alerts_0e
 1. **Уверенное утверждение без проверки** — самый частый тип: 1, 4, 6, 8, 9, 11, 25, 27, 32.
    - Самый показательный случай — 11: вывод записан как проверенный, но проверки не было. Вывод оказался
      верным, а обоснование — выдуманным.
-   - Ошибка 8 — из нашего собственного плана: «датасет обновляется ежедневно» мы взяли из README датасета, не
+   - Ошибка 8 — в плане: фразу «датасет обновляется ежедневно» ассистент чата планирования взял из README датасета, не
      проверив.
 2. **Подсчёт на грязных данных или в неверном порядке:** 2, 3, 7, 15, 16. Отсюда правила 2 и 8 в плане:
    дедупликация до любых подсчётов, сверка со справочной таблицей.
@@ -336,8 +337,8 @@ README мы [перестроили](claude_code/2026-10-12_yellow-red-alerts_0e
    бы три района и 454 записи (24).
 5. **Завышенный или неподтверждённый результат:** 26, 27, 31, 32 — выигрыш, завышенный втрое, или текст, который
    расходится с собственным отчётом.
-6. **Нарушение процесса:** 12, 14. Сюда же относится наше собственное решение идти дальше при маске больше 5%
-   (момент 2).
+6. **Нарушение процесса:** 12, 14 — статус «зафиксировано» до сверки; этап 2 начат без обсуждения превышения
+   порога маски.
 
 ### Как ловили
 
@@ -368,7 +369,18 @@ README мы [перестроили](claude_code/2026-10-12_yellow-red-alerts_0e
 
 ## Рефлексия
 
-<!-- Пишет автор. -->
+Тот же текст в виде plain text — [REFLECTION.txt](REFLECTION.txt).
+
+> **What went wrong:** AI agents kept making confident, unchecked claims. Three agents agreed on thousands of
+> overlapping alerts that did not exist and missed that the data had stopped on 7 September. Two leakage bugs
+> passed our tests.
+>
+> **How I adjusted:** I treated agreement as no evidence, checked disagreements with scripts on the data, had
+> every stage reviewed by another agent or model, and asked how events unfold in time instead of trusting green
+> tests.
+>
+> **Why it is better:** unlike the first attempt, features see only what was known at time t, the modest gain is
+> reported with where it breaks, and all 32 caught errors are logged.
 
 ---
 
@@ -406,12 +418,12 @@ claude.ai и Antigravity — реплики пользователя (3 из 3):
 - [Antigravity · 2026-10-11 22:30](antigravity/main_dialogue.md) — «…еобучения? И есть ли какие то стандарты как учитывают такие ошибки (если это вообще стоит делать) ?»
 - [Antigravity · 2026-10-12 12:56](antigravity/main_dialogue.md) — «Мг, а вот давай обратим внимание на баг найденвй баг в api check, : data_end берется как минимум. Мне ведь нужно сегодлня обновить данные.»
 
-claude.ai и Antigravity — ответы ассистента (6 из 20):
+claude.ai и Antigravity — ответы ассистента (6 из 21):
 - [claude.ai · 2026-10-09 23:23](claude_ai/chat_planning.md) — «…чу **Случайное разбиение на train/test.** Это самая частая ошибка. Соседние часы почти одинаковы: если тревога была в 14:00 и в 16:00, то в 15:00 она почти наверня»
 - [claude.ai · 2026-10-10 22:51](claude_ai/chat_planning.md) — «… дорогой агент нужнее не там, где больше работы, а там, где ошибки трудно заметить. **Где ошибки видны сразу, а где нет.** Для этапа 1б у нас уже есть эталон: ожид»
 - [Antigravity · 2026-10-10 23:56](antigravity/main_dialogue.md) — «Исправляю небольшую ошибку в проверке часового пояса (из-за версии библиотеки 'pandas' в тесте) и перепроверяю загрузчик дан»
-- [Antigravity · 2026-10-11 00:46](antigravity/main_dialogue.md) — «…номальные тревоги именно в тестовом периоде, а не результат ошибки двойного подсчета. Жду ваших указаний, что с этим делать дальше!»
-- [Antigravity · 2026-10-12 12:35](antigravity/main_dialogue.md) — «…k.py#L41)):** Обидва агенти виявили, що 'detect_outages' помилково враховує вигадані кінці 'start + 1h'. Через це початок блекауту 29.08 зсунувся з 04:55:28 на 05»
+- [Antigravity · 2026-10-11 20:44](antigravity/main_dialogue.md) — «…** * Агенты будут ориентированы на выявление критических ошибок, утечек данных (data leakage), расхождений с \['PLAN.md'\](file:///D:/Flash/golova/KSE_AI\AAFS\PLAN»
+- [Antigravity · 2026-10-12 12:58](antigravity/main_dialogue.md) — «…g.py', файли проекту не змінювалися). --- ### 1. Механізм бага в коді Код, де криється проблема: * \['src/alerts/api_check.py:33-37'\](file:///D:/Flash/golova/KSE»
 - [Antigravity · 2026-10-10 17:24](antigravity/stage1_agents/gemini_flash/chat.md) — «…NS.md)** со всеми нашими выводами, обоснованиями и разбором ошибок ИИ. 2. Файл 'DECISIONS-gemini-flash.md' синхронизирован с ним и зафиксирован в git, чтобы в любом»
 
 #### Ревью
