@@ -5,6 +5,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/*.parquet
+reviews/scratch/
+scratch-gpro/
 
 # secrets: never in version control
 alerts_api/token.txt
