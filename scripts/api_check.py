@@ -99,8 +99,9 @@ def main() -> int:
     jv = ac.clone_jaccard(art_v.scope, units, lo_v, hi_v)
     ja = ac.clone_jaccard(art_a.scope, units, lo_a, hi_a)
     vol = ac.volunteer(cfg)
+    hi_t = min(hi_a, vol['started_at'].max().floor('h'))   # the pinned volunteer snapshot may end earlier
     tv = ac.triangulate(ac.oblast_intervals(art_v), vol, lo_v, hi_v)
-    ta = ac.triangulate(ac.oblast_intervals(art_a), vol, lo_a, hi_a)
+    ta = ac.triangulate(ac.oblast_intervals(art_a), vol, lo_a, hi_t)
     sp = lambda c: both[c].corr(both[f'{c}_api'], method='spearman')  # noqa: E731
     md += ['', '## Sources without models (8.4)', '',
            f'No common period: Vadimkin {lo_v.date()} to {hi_v.date()} (the last 4 weeks before the outage, D15), '
@@ -115,7 +116,8 @@ def main() -> int:
     for uid in sorted(jv['unit_id'].unique()):
         a, b = jv[jv['unit_id'] == uid]['jaccard'], ja[ja['unit_id'] == uid]['jaccard']
         md.append(f'| {uid} | {len(a)} | {a.min():.3f} / {a.median():.3f} | {b.min():.3f} / {b.median():.3f} |')
-    md += ['', 'Triangulation with the volunteer series (oblast level, starts matched within 10 min):', '',
+    md += ['', 'Triangulation with the volunteer series (oblast level, starts matched within 10 min; on the API '
+           f'side up to {hi_t}, the end of the pinned volunteer snapshot):', '',
            '| Pair | Oblasts | Source starts matched | Volunteer starts matched | Median lag, s | Best hourly lag |',
            '|---|---|---|---|---|---|']
     for name, t in [('Vadimkin vs volunteers (August)', tv), ('API vs volunteers (Sep-Oct)', ta)]:
@@ -124,12 +126,12 @@ def main() -> int:
     obl = sorted(set(ac.oblast_intervals(art_v)['oblast']) & set(vol['oblast']))
     act = {('Vadimkin', 'Aug'): ac.activity(ac.oblast_intervals(art_v), lo_v, hi_v, obl),
            ('volunteers', 'Aug'): ac.activity(ac.volunteer_intervals(vol), lo_v, hi_v, obl),
-           ('API', 'Sep-Oct'): ac.activity(ac.oblast_intervals(art_a), lo_a, hi_a, obl),
-           ('volunteers', 'Sep-Oct'): ac.activity(ac.volunteer_intervals(vol), lo_a, hi_a, obl)}
+           ('API', 'Sep-Oct'): ac.activity(ac.oblast_intervals(art_a), lo_a, hi_t, obl),
+           ('volunteers', 'Sep-Oct'): ac.activity(ac.volunteer_intervals(vol), lo_a, hi_t, obl)}
     ratio = lambda k: act[('API', 'Sep-Oct')][k] / act[('Vadimkin', 'Aug')][k]  # noqa: E731
     vratio = lambda k: act[('volunteers', 'Sep-Oct')][k] / act[('volunteers', 'Aug')][k]  # noqa: E731
     md += ['', 'Real change or a different source? The volunteer series covers both windows and measures the '
-           f'change with one ruler ({len(obl)} oblasts, oblast level):', '',
+           f'change with one ruler ({len(obl)} oblasts, oblast level; Sep-Oct up to {hi_t}):', '',
            '| | Vadimkin, Aug | API, Sep-Oct | Change of sources | Volunteers, Aug | Volunteers, Sep-Oct | Real change (volunteers) |',
            '|---|---|---|---|---|---|---|']
     for k, f in [('starts_per_oblast_day', '{:.2f}'), ('share_under_alert', '{:.3f}')]:
