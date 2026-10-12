@@ -138,7 +138,7 @@ Names: our English key, Ukrainian name used for matching, the English title of t
 ## Source profile (8.3)
 
 - Processor rules of Vadimkin (invented 1-hour ends, mask (b), open_until): off.
-- Period: 2026-09-13T00:00:00+00:00 to data_end 2026-10-12T11:00:00+00:00 (earliest request, floored to the hour); warm-up until 2026-09-20T00:00:00+00:00.
+- Period: 2026-09-13T00:00:00+00:00 to data_end 2026-10-12T11:00:00+00:00 (the earliest of the oblasts' last requests, floored to the hour); warm-up until 2026-09-20T00:00:00+00:00.
 - Data outages longer than 6 h: none
 - Masks (a) long alerts on target units: 21
 - Grid rows h=3 with a label: 42,122, base rate 0.345

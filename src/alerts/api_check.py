@@ -22,19 +22,29 @@ KYIV = 'Europe/Kyiv'
 
 
 # --- source profile (8.3) ------------------------------------------------------------------
-def api_config(cfg: dict, raw: pd.DataFrame, window_days: int = 30) -> dict:
+def api_config(cfg: dict, downloads: pd.DataFrame, window_days: int = 30) -> dict:
     """Config of the API source: processor rules off, its own periods.
 
-    data_end: the earliest request time floored to the hour. The history covers about `window_days`
-    before each request; the latest such start, ceiled to midnight, opens the period, and the first
-    week is the feature warm-up. Everything after the warm-up is the evaluation ("test") part.
+    `downloads`: every saved response (ingest.alerts_in_ua.downloads), not the rows kept after the
+    merge by id: a row's request time only says which file holds its latest version. A response
+    covers about `window_days` before its request, so the downloads of one oblast cover
+    [first request - window_days, last request]. The period is where every oblast is covered: it opens
+    at the latest of the oblast starts, ceiled to midnight (the first week is the feature warm-up), and
+    data_end is the earliest of the oblast last requests, floored to the hour. An oblast whose
+    re-download failed keeps data_end at its previous download instead of looking quiet after it.
+    Everything after the warm-up is the evaluation ("test") part.
     """
+    uids = [str(u) for u in cfg['api']['oblast_uids']]
+    d = downloads[downloads['uid'].isin(uids)]
+    missing = sorted(set(uids) - set(d['uid']))
+    if missing:
+        raise ValueError(f'no saved response for oblast uids {missing}: run scripts/fetch_alerts_in_ua.py')
+    cover = d.groupby('uid')['requested_utc'].agg(['min', 'max'])
     c = copy.deepcopy(cfg)
-    first, last = raw['requested_utc'].min(), raw['requested_utc'].max()
-    start = (last - pd.Timedelta(days=window_days)).ceil('D')
+    start = (cover['min'].max() - pd.Timedelta(days=window_days)).ceil('D')
     warm = start + pd.Timedelta(days=7)
     c['processor']['enabled'] = False
-    c['data_end'] = first.floor('h').isoformat()
+    c['data_end'] = cover['max'].min().floor('h').isoformat()
     c['periods'] = {'work_start': start.isoformat(), 'warmup_end': warm.isoformat(),
                     'train_end': warm.isoformat(), 'val_end': warm.isoformat()}
     c['scope']['excluded_oblasts'] = []        # Luhansk is not among the mapped locations at all

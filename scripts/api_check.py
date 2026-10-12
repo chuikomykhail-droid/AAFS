@@ -22,7 +22,7 @@ from alerts import api_check as ac  # noqa: E402
 from alerts import figures, leakage, store  # noqa: E402
 from alerts.config import ROOT, load_config, path, ts  # noqa: E402
 from alerts.backtest import walk_forward  # noqa: E402
-from alerts.ingest.alerts_in_ua import KYIV_UK, build_locations, load_alerts_in_ua, norm, read_raw  # noqa: E402
+from alerts.ingest.alerts_in_ua import KYIV_UK, build_locations, downloads, load_alerts_in_ua, norm, read_raw  # noqa: E402
 from alerts.metrics import bootstrap  # noqa: E402
 from alerts.models.baselines import UnitHourRate  # noqa: E402
 from alerts.metrics import METRICS  # noqa: E402
@@ -76,13 +76,13 @@ def main() -> int:
         logger.error(f'locations missing in the API data: {missing}')
 
     # 8.3: source profile
-    cfg_a = ac.api_config(cfg, raw)
+    cfg_a = ac.api_config(cfg, downloads(raw_dir))
     art_a = build_tables(recs, cfg_a, units=units, neighbors=neighbors)
     art_v = build_all(cfg)
     md += ['', '## Source profile (8.3)', '',
            f"- Processor rules of Vadimkin (invented 1-hour ends, mask (b), open_until): off.",
-           f"- Period: {cfg_a['periods']['work_start']} to data_end {cfg_a['data_end']} (earliest request, floored "
-           f"to the hour); warm-up until {cfg_a['periods']['warmup_end']}.",
+           f"- Period: {cfg_a['periods']['work_start']} to data_end {cfg_a['data_end']} (the earliest of the oblasts' "
+           f"last requests, floored to the hour); warm-up until {cfg_a['periods']['warmup_end']}.",
            f"- Data outages longer than {cfg['thresholds']['outage_gap_hours']} h: "
            + ('; '.join(f'{o.start} -> {o.end}' for o in art_a.outages.itertuples()) or 'none'),
            f"- Masks (a) long alerts on target units: {art_a.mask_stats['long_24h']['units']}",
