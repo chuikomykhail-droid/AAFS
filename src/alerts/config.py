@@ -24,6 +24,7 @@ _REQUIRED = {
     'report': ['forecast_units', 'forecast_days'],
     'api': ['base_url', 'history_path', 'token_env', 'token_file', 'pause_seconds', 'retry_after_429_seconds',
             'raw_dir', 'oblast_uids'],
+    'levels': ['kyiv_start', 'lviv_start', 'channel_stop', 'horizon'],
     'paths': ['units', 'mask', 'intervals', 'seen', 'neighbors', 'grid', 'predictions', 'similar_pairs', 'reports'],
 }
 

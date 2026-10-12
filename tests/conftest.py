@@ -27,6 +27,7 @@ _BASE_CFG = {
     'report': {'forecast_units': [], 'forecast_days': 7},
     'api': {'base_url': '', 'history_path': '', 'token_env': '', 'token_file': '', 'pause_seconds': 0,
             'retry_after_429_seconds': 0, 'raw_dir': '', 'oblast_uids': []},
+    'levels': {'kyiv_start': '', 'lviv_start': '', 'channel_stop': '', 'horizon': 3},
     'horizons': [1, 3, 6],
     'paths': {'units': '', 'mask': '', 'intervals': '', 'seen': '', 'neighbors': '', 'grid': '', 'predictions': '', 'similar_pairs': '', 'reports': ''},
 }

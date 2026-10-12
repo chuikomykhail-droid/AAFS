@@ -5,7 +5,7 @@ air-raid alert starts there within the next `h` hours (1, 3 or 6; the main horiz
 evaluated on the last four weeks of the available data, retrained daily, with checks for leakage from
 the future.
 
-Decisions in detail are in [`DECISIONS.md`](DECISIONS.md) (D00–D22, plus the log of AI errors that were
+Decisions in detail are in [`DECISIONS.md`](DECISIONS.md) (D00–D23, plus the log of AI errors that were
 caught), the plan and the status of the stages are in [`PLAN.md`](PLAN.md) (both in Russian), and all
 the numbers are in [`reports/`](reports/).
 
@@ -45,6 +45,8 @@ only the volunteer oblast-level data are updated.
   channel (there are no new posts); the alerts.in.ua API, a source with different processing that cannot
   be glued to the test. It is used separately, as a check one month later (section below).
 - The snapshot is pinned: commit `58ee75b`; the SHA-256 of the file is checked on every load.
+- The channel went silent a day after the two-level alert system started in Kyiv (see below). Whether the two
+  are connected is a hypothesis; it has not been checked (D23).
 
 **Preparation (D03–D15):**
 - 38% of the rows of the file are exact duplicates; deduplication is the first step;
@@ -55,6 +57,15 @@ only the volunteer oblast-level data are updated.
   "status unknown" rather than truncated;
 - **from 29 August to 2 September the channel was silent for 4.3 days** (found during the review, D15).
   This gap is masked; without the mask 13% of the test rows would be false "zeros".
+
+**Changes in the alert system:**
+- 7 November 2025: alerts are announced by raion in every oblast (D04). The working period starts here.
+- September 2026: two alert levels (Cabinet of Ministers resolution No. 1092 of 4 September 2026). Yellow
+  means a drone threat (a 30 s siren; businesses with a shelter may keep working), red means a missile or
+  combined attack (a 60 s siren; work stops). Kyiv tested the system from 06:00 Kyiv time on 6 September,
+  and the other oblasts switched gradually (D23). The main test ends on 7 September: only 19 of its
+  46,270 rows (Kyiv, 6 September) fall after Kyiv's switch, all of them with y = 0. Without them the results
+  stay the same to the third decimal.
 
 **Split (D14):** training until 2026-07-13, validation 4 weeks, test 2026-08-10 – 2026-09-07.
 
@@ -112,16 +123,33 @@ zero (the log loss is still significantly better); on the download made one day 
 [+0.002, +0.036], so at h = 3 the advantage sits at the edge of significance. At h = 6 there is none.
 The leakage checks on the API period pass.
 
+**The API window falls into the two-level regime (D23).** Every API record has `alert_level`. In 21 of the
+24 regions with alerts in the window (Kyiv included) the first yellow record falls within the first day of
+the window (12 September). Dnipropetrovsk oblast switches at raion level around 21 September, and
+Zakarpattia has no yellow alert at all. So the check
+one month later also covers a different alerting regime, and the effects of the regime and of the source
+cannot be separated. Three quarters of the positive rows start with a yellow alert. Against B1 refitted on
+the API data, what is left of the frozen model's advantage comes from red alerts (ROC-AUC
++0.019 [+0.004, +0.032]); on yellow ones the two are on par (+0.002 [−0.010, +0.013]). Raions of one oblast
+are now announced together less often (median Jaccard 0.53 before, 0.42 after, mixed with the change of
+source): red alerts cover the whole oblast, yellow ones a raion or a few.
+Details are in [`reports/levels_check.md`](reports/levels_check.md).
+
 To reproduce: get your own token at alerts.in.ua, put it into `alerts_api/token.txt` (the file is in
 `.gitignore`) or into the variable `ALERTS_IN_UA_TOKEN`, then run `python scripts/fetch_alerts_in_ua.py --all-oblasts`
 into an empty `data/raw/alerts_in_ua/` (about 14 minutes because of the limit of 2 requests per minute)
-and `python scripts/api_check.py`. The raw API responses are not in the repository: the terms of their
-publication are not defined.
+and `python scripts/api_check.py` (then `python scripts/levels_check.py` for the alert levels, D23). The
+raw API responses are not in the repository: the terms of their publication are not defined.
 
 ## Limitations
 
 - The model has not seen data for a month: the main series ended on 7 September. In a real deployment it
   would have to be retrained.
+- The models were trained before the alert levels were introduced. The level is used neither as a feature
+  nor as a target, because there is no labelled history before September; the target counts an alert of
+  any level (D23).
+- In the API data Lviv oblast has yellow alerts from 12 September, while a local news source dates the
+  oblast's switch to 12 October. This discrepancy is not resolved (D23).
 - Raion-level threat posts were checked on a sample of 60 posts, not on the full archive of the channel
   (D09).
 - If an all-clear was lost and a new alert came within three hours, the dataset's processor silently
@@ -130,8 +158,9 @@ publication are not defined.
 - Right edge: alerts not closed before the channel stopped are missing from the data (D13).
 - The test has no alert at all in Lviv, Ivano-Frankivsk and Zakarpattia oblasts: the metrics for them are
   undefined.
-- In the west raions are almost always announced together, so raion-level differentiation is weak there;
-  in the east and the centre it really works (D07).
+- Before the alert levels, raions in the west were almost always announced together, so raion-level
+  differentiation is weak there; in the east and the centre it really works (D07). Since the levels this
+  holds only for red alerts: yellow ones are announced by raion (D23).
 
 ## Running
 
@@ -149,5 +178,5 @@ needs your own alerts.in.ua token (see the section above).
 
 The project was built with AI assistants (Claude Code, Gemini in Antigravity) following the plan in
 `PLAN.md`. Every non-trivial decision and every caught AI error is recorded in `DECISIONS.md`: the log
-holds 28 cases, from invented numbers and unchecked conclusions to a leak from the future that was found
+holds 31 cases, from invented numbers and unchecked conclusions to a leak from the future that was found
 by a human, not by a test. Old files of the early stages are in `archive/`.

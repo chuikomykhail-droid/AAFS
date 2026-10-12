@@ -94,6 +94,12 @@ api:                                                   # stage 8: alerts.in.ua (
   raw_dir: "data/raw/alerts_in_ua"                     # git-ignored: publication terms not defined
   oblast_uids: [3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
 
+levels:                                                # D23: yellow / red alerts (CMU resolution No. 1092, 4.09.2026)
+  kyiv_start: "2026-09-06T03:00:00Z"                   # Kyiv tests the system from 06:00 Kyiv time on 6.09 (nv.ua)
+  lviv_start: "2026-10-11T21:00:00Z"                   # Lviv oblast "from 12.10" (vzhovkvi.com); time of day not given, 00:00 Kyiv taken
+  channel_stop: "2026-09-07T06:09:00Z"                 # air_alert_ua went silent (D02)
+  horizon: 3
+
 report:                                                # stage 7
   forecast_units: ["Kyiv City", "Odeskyi raion", "Dniprovskyi raion"]   # large cities with quiet stretches
   forecast_days: 7
