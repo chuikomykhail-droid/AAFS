@@ -1,4 +1,5 @@
-# AAFS — forecasting air-raid alerts by raion in Ukraine
+# AAFS — Air-raid Alert Forecasting System, raion by raion
+
 
 Every hour, for each raion of Ukraine where it is quiet at that moment, the model gives the probability
 that an air-raid alert starts there within the next 1, 3 or 6 hours. It is tested on the last four weeks
