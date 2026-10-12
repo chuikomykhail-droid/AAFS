@@ -170,13 +170,13 @@ API responses are not in the repository: the terms of their publication are not 
   (`PLAN.md`, rules 5–6). All constants live in `config.yaml`.
 - **37 tests** (`python -m pytest`), including the leakage checks.
 
-## How it was built
+## How the results were checked
 
-The project was built with AI assistants (Claude Code, Gemini in Antigravity) following the plan and the
-working rules in [`PLAN.md`](PLAN.md). Every non-trivial decision is recorded in
-[`DECISIONS.md`](DECISIONS.md) (in Russian), together with the reference numbers that `run_all.py` checks
-and a log of 32 AI errors caught on the way, each with how it was found. Three of them would have changed
-the results:
+Every non-trivial decision is recorded in [`DECISIONS.md`](DECISIONS.md) (in Russian) with the numbers
+behind it, and `run_all.py` re-checks those reference numbers on every run. The code was written with AI
+assistants (Claude Code, Gemini in Antigravity) under the rules in [`PLAN.md`](PLAN.md); the same file
+logs 32 of their errors caught on the way, each with how it was found. Three would have changed the
+results:
 - a 4.3-day silence of the channel inside the test went unnoticed by every agent of stage 1; without a
   mask, 7,457 test rows (13.4%) would have been false "no alert" labels (D15);
 - the history read alert ends that the source writes retroactively: a leak that the first leakage check
@@ -184,8 +184,8 @@ the results:
 - the gain of the frozen model one month later would have been reported as +0.096 PR-AUC instead of
   +0.017, because the baseline had gone stale (D22).
 
-After the stages were built, the project went through two independent review sets, Claude agents and
-Gemini agents, with the same prompts: seven reviews each, covering stages 0–8
+Then the finished project went through two independent review sets, Claude agents and Gemini agents,
+with the same prompts: seven reviews each, covering stages 0–8
 ([`reviews/prompts/`](reviews/prompts/)). A final synthesis ([`reviews/FINAL.md`](reviews/FINAL.md), in
 Russian) merged them into one plan and settled every disagreement on the data. Both sets found the same
 main problems, but the weaker one was confidently wrong in numbers (an estimate of lost alerts ten times
