@@ -30,3 +30,18 @@ def test_split_parts():
     part = split_parts(p, {'A': utc('2026-09-10T00:00:00Z'), 'B': pd.NaT})
     assert part.iloc[:3].tolist() == ['before', 'after', 'before']
     assert pd.isna(part.iloc[3])
+
+
+def test_area_coverage_is_time_weighted_over_minutes_with_an_alert():
+    from alerts.levels import area_coverage, minute_series
+    raions = pd.DataFrame({'oblast': ['A', 'A', 'B'], 'raion': ['a1', 'a2', 'b1'], 'area': [3.0, 1.0, 5.0]})
+    rec = pd.DataFrame({'oblast': ['A', 'A'], 'raion': ['a1', 'a2'],
+                        'started_at': [utc('2026-10-01T00:00:00Z'), utc('2026-10-01T00:30:00Z')],
+                        'finished_at': [utc('2026-10-01T01:00:00Z'), utc('2026-10-01T01:30:00Z')]})
+    s = minute_series(rec, raions, utc('2026-10-01T00:00:00Z'), utc('2026-10-01T02:00:00Z'))
+    assert s.sum(axis=1).tolist() == [60, 60, 0]
+    c = area_coverage(s, raions)
+    # oblast A: 30 min only a1 (3/4), 30 min both (1), 30 min only a2 (1/4); 90 minutes with an alert
+    assert c.at['A', 'minutes'] == 90
+    assert abs(c.at['A', 'area_share'] - (0.75 + 1 + 0.25) / 3) < 1e-12
+    assert c.at['B', 'minutes'] == 0 and pd.isna(c.at['B', 'area_share'])

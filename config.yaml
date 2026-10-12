@@ -100,6 +100,15 @@ levels:                                                # D23: yellow / red alert
   channel_stop: "2026-09-07T06:09:00Z"                 # air_alert_ua went silent (D02)
   horizon: 3
 
+visuals:                                               # presentation maps and animation (scripts/make_visuals.py)
+  map_decimals: 2                                      # boundary coordinates rounded to 0.01 degree (~1 km)
+  horizon: 3
+  gif_lead_hours: 12                                   # the animation starts this long before the busiest test day
+  gif_hours: 36
+  gif_frame_minutes: 15
+  gif_frame_ms: 120
+  forecast_min_train_days: 14                          # scripts/forecast.py: earliest moment = warmup_end + this
+
 report:                                                # stage 7
   forecast_units: ["Kyiv City", "Odeskyi raion", "Dniprovskyi raion"]   # large cities with quiet stretches
   forecast_days: 7

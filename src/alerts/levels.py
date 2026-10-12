@@ -164,6 +164,34 @@ def oblast_profile(art, lo: pd.Timestamp, hi: pd.Timestamp) -> pd.DataFrame:
                          'share_under_alert': cover.reindex(n_units.index, fill_value=0) / (n_units * days * 86400)})
 
 
+def minute_series(records: pd.DataFrame, raions: pd.DataFrame, lo: pd.Timestamp, hi: pd.Timestamp) -> np.ndarray:
+    """Under alert or not, per minute of [lo, hi): a (len(raions), minutes) boolean matrix in the row order
+    of `raions` (oblast, raion). `records`: oblast, raion, started_at, finished_at."""
+    n = int((hi - lo) // pd.Timedelta(minutes=1))
+    x = records[(records['started_at'] < hi) & (records['finished_at'] > lo)]
+    out = np.zeros((len(raions), n), dtype=bool)
+    for i, (ob, r) in enumerate(zip(raions['oblast'], raions['raion'])):
+        y = x[(x['oblast'] == ob) & (x['raion'] == r)]
+        a = np.zeros(n + 1, dtype=np.int32)
+        np.add.at(a, np.clip((to_sec(y['started_at']) - to_sec(lo)) // 60, 0, n), 1)
+        np.add.at(a, np.clip((to_sec(y['finished_at']) - to_sec(lo)) // 60, 0, n), -1)
+        out[i] = np.cumsum(a[:-1]) > 0
+    return out
+
+
+def area_coverage(series: np.ndarray, raions: pd.DataFrame) -> pd.DataFrame:
+    """Per oblast: the share of its area under alert, averaged over the minutes when at least one of its
+    raions is under alert (time-weighted), and the number of such minutes. `raions`: oblast, area."""
+    rows = []
+    for ob, idx in raions.groupby('oblast').indices.items():
+        s, w = series[idx], raions['area'].to_numpy()[idx]
+        share = (w[:, None] * s).sum(axis=0) / w.sum()
+        on = s.any(axis=0)
+        rows.append({'oblast': ob, 'raions': len(idx), 'minutes': int(on.sum()),
+                     'area_share': float(share[on].mean()) if on.any() else np.nan})
+    return pd.DataFrame(rows).set_index('oblast')
+
+
 def raion_jaccard(records: pd.DataFrame, raions: pd.DataFrame, lo: pd.Timestamp, hi: pd.Timestamp) -> pd.DataFrame:
     """Minute-level Jaccard of every pair of raions inside each oblast on [lo, hi).
 

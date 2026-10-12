@@ -9,6 +9,24 @@ Decisions in detail are in [`DECISIONS.md`](DECISIONS.md) (D00–D23, plus the l
 caught), the plan and the status of the stages are in [`PLAN.md`](PLAN.md) (both in Russian), and all
 the numbers are in [`reports/`](reports/).
 
+![Alerts and the 3-hour forecast over 36 hours of the test](reports/figures/alerts_forecast.gif)
+
+36 hours around the busiest day of the test (27 August 2026, 430 alert starts). Red raions are under
+alert; the blue shade of a quiet raion is the forecast chance that an alert starts there within 3 hours.
+The forecast is made at the top of every hour by a model that saw only what was known before that day
+(walk-forward backtest); a black outline marks an alert that has just started. The animation is drawn
+from the saved backtest predictions: `python scripts/make_visuals.py`.
+
+**Try a moment yourself.** `python scripts/forecast.py --at "2026-08-27 01:00"` refits the model on what
+was known at that moment (Kyiv time, any hour from 28 November 2025 to 7 September 2026), prints the
+quiet raions from the most to the least likely, and shows what really happened in the next 3 hours.
+`--h 1`, `--top 20`, `--map file.png` and `--csv file.csv` are optional; `--source api` replays the
+alerts.in.ua month with the frozen model (needs your own download, see below). One moment proves
+nothing: on this one all 15 most likely raions got an alert, but the model expected 16 starts and there
+were 30. The honest measure is the backtest below.
+
+![Forecast at one moment and what happened](reports/figures/forecast_example.png)
+
 ## Results
 
 Test: 2026-08-10 – 2026-09-07, retrained daily; square brackets give the 95% interval of a bootstrap
@@ -31,6 +49,25 @@ model tells moments and neighbouring raions apart. For example, on the test at h
 is 0.63 for LR versus 0.34 for B1, and in Kyiv oblast 0.55 versus 0.34 (`reports/backtest_h3.md`).
 
 ![Forecast versus fact](reports/figures/forecast_vs_fact.png)
+
+## Why the unit is a raion
+
+An alert rarely covers a whole oblast. While any raion of an oblast is under alert, on average about half
+of the oblast's area is: 52% for a yellow (drone) alert and 58% for a red (missile) one, in the month of
+alerts.in.ua data (D23). A red alert covers the whole oblast only in the west, where the month had three
+nationwide red waves; in the north and the east red alerts are local too. A forecast per oblast would
+call the whole oblast for an alert that half of it never gets.
+
+![What part of an oblast an alert covers](reports/figures/levels_coverage.png)
+
+How synchronous the raions of an oblast are depends on the region and has changed with the alert levels.
+Before them, the west was announced almost as a whole (Ternopil 0.99, Ivano-Frankivsk 0.94, Lviv 0.88:
+the median Jaccard of raion pairs over the training period), while the east and the south went raion by
+raion (Dnipropetrovsk 0.39, Kherson 0.42, Chernihiv 0.47; D07). After the levels the west splits too,
+because yellow alerts are announced per raion. Zakarpattia is the exception before the levels (0.36):
+it has very few alerts.
+
+![How often the raions of one oblast are under alert together](reports/figures/raion_synchrony.png)
 
 ## Data
 
@@ -132,7 +169,8 @@ cannot be separated. Three quarters of the positive rows start with a yellow ale
 the API data, what is left of the frozen model's advantage comes from red alerts (ROC-AUC
 +0.019 [+0.004, +0.032]); on yellow ones the two are on par (+0.002 [−0.010, +0.013]). Raions of one oblast
 are now announced together less often (median Jaccard 0.53 before, 0.42 after, mixed with the change of
-source): red alerts cover the whole oblast, yellow ones a raion or a few.
+source): yellow alerts are announced per raion, and only in the west do red ones cover the whole oblast
+(see the maps above).
 Details are in [`reports/levels_check.md`](reports/levels_check.md).
 
 To reproduce: get your own token at alerts.in.ua, put it into `alerts_api/token.txt` (the file is in
@@ -168,6 +206,8 @@ raw API responses are not in the repository: the terms of their publication are 
 pip install -r requirements.txt
 python scripts/run_all.py        # data snapshot -> tables -> features -> backtest -> reports (~30 min)
 python -m pytest                 # tests
+python scripts/make_visuals.py   # maps and the animation in reports/figures (~1.5 min)
+python scripts/forecast.py --at "2026-08-27 01:00"   # the forecast at one moment, and what happened
 ```
 
 `run_all.py` downloads the pinned dataset snapshot itself, checks all reference numbers against
@@ -178,5 +218,5 @@ needs your own alerts.in.ua token (see the section above).
 
 The project was built with AI assistants (Claude Code, Gemini in Antigravity) following the plan in
 `PLAN.md`. Every non-trivial decision and every caught AI error is recorded in `DECISIONS.md`: the log
-holds 31 cases, from invented numbers and unchecked conclusions to a leak from the future that was found
+holds 32 cases, from invented numbers and unchecked conclusions to a leak from the future that was found
 by a human, not by a test. Old files of the early stages are in `archive/`.

@@ -25,6 +25,8 @@ _REQUIRED = {
     'api': ['base_url', 'history_path', 'token_env', 'token_file', 'pause_seconds', 'retry_after_429_seconds',
             'raw_dir', 'oblast_uids'],
     'levels': ['kyiv_start', 'lviv_start', 'channel_stop', 'horizon'],
+    'visuals': ['map_decimals', 'horizon', 'gif_lead_hours', 'gif_hours', 'gif_frame_minutes', 'gif_frame_ms',
+                'forecast_min_train_days'],
     'paths': ['units', 'mask', 'intervals', 'seen', 'neighbors', 'grid', 'predictions', 'similar_pairs', 'reports'],
 }
 
