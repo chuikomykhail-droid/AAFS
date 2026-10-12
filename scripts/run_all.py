@@ -80,7 +80,7 @@ def _tuning_md(table) -> str:
     cols = [c for c in ['model', 'C', 'num_leaves', 'min_child_samples', 'half_life_days', 'n_estimators',
                         'log_loss', 'pr_auc', 'brier', 'seconds'] if c in table]
     lines = ['## Hyperparameters chosen on validation (D20)', '',
-             'Fitted on rows with t <= train_end - h, scored on the validation rows; the lowest log loss wins.', '',
+             'Fitted on rows with t <= train_end - h, scored on the validation rows with t <= val_end - h; the lowest log loss wins.', '',
              '| ' + ' | '.join(cols) + ' |', '|' + '---|' * len(cols)]
     ints = {'num_leaves', 'min_child_samples', 'half_life_days', 'n_estimators'}
 
